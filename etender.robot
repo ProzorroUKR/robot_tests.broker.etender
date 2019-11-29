@@ -30,7 +30,6 @@ ${locator.enquiryPeriod.startDate}                             id=enquiryStart
 ${locator.enquiryPeriod.endDate}                               id=enquiryEnd
 ${locator.causeDescription}                                    id=causeDescription
 ${locator.cause}                                               id=cause
-${locator.qualificationPeriod.endDate}                         id=qualificationPeriod_endDate
 ${locator.qualifications[0].status}                            xpath=(//div[@ng-controller="qualificationsCtrl"]//div[@class = "row"]/div[contains(.,"Статус:")]/following-sibling::div)[1]
 ${locator.qualifications[1].status}                            xpath=(//div[@ng-controller="qualificationsCtrl"]//div[@class = "row"]/div[contains(.,"Статус:")]/following-sibling::div)[2]
 ${locator.items[0].description}                                id=item_description_00
@@ -433,7 +432,7 @@ Login
   Перейти на сторінку плану за потреби
   #Wait and Click  xpath=//a[contains(@href, '#/planDetails/')]
   Sleep  3
-  Wait Scroll Click  xpath=//a[contains(@ng-href, 'updatePlan')]
+  Wait Scroll Click  id=updatePlan
   ${items_index}=  Get Matching Xpath Count  //textarea[contains(@id, 'itemsDescription')]
   Wait and Click  xpath=//button[@ng-click= 'addItem()']
   Wait and Input  xpath=//textarea[@id ='itemsDescription${items_index}']  ${items_description}
@@ -445,16 +444,16 @@ Login
   Capture Page Screenshot
   Press Key  xpath=//div[@class="selectize-input focus"]/input  \\13
   Capture Page Screenshot
-  Wait and Click          xpath=//span[@ng-if = 'createPlanModel.apiId']  10
+  Wait and Click  id=qa_savePlan  10
   Reload Page
 
 Видалити предмет закупівлі плану
   [Arguments]  ${username}  ${tender_uaid}  ${item_id}
   Перейти на сторінку плану за потреби
-  Wait Scroll Click  xpath=//a[contains(@ng-href, 'updatePlan/')]  10
+  Wait Scroll Click  id=updatePlan  10
   Sleep  5
   Wait Scroll Click  xpath=//h4[contains(text(), '№ 2')]//button[@ng-click = 'removeItem($index)']
-  Wait and Click          xpath=//span[@ng-if = 'createPlanModel.apiId']  10
+  Wait and Click  id=qa_savePlan  10
   Reload Page
 
 
@@ -644,7 +643,7 @@ add feature
 Перейти до редагування плану
   Перейти на сторінку плану за потреби
   Дочекатись зникнення blockUI
-  Wait Scroll Click     xpath=//a[text()="Редагувати план"]
+  Wait Scroll Click     id=updatePlan
   Дочекатись зникнення blockUI
 
 Редагувати поле плану
@@ -1155,7 +1154,7 @@ add feature
   ${text}=  Get Element Attribute  //div[@class="infoPlanBlock"]//div[text()="Тип процедури:"]/following-sibling::div@outerText
   Run Keyword And Return  get_method_type  ${text.lower()}
 
-Отримати інформацію із плану про budget.amount
+Отримати інформацію про budget.amount
   ${return_value}=   Get Text  tenderBudget
   ${return_value}=   Set Variable  ${return_value.replace(u'\xa0','')}  # nbsp converting attempt
   ${return_value}=   Set Variable  ${return_value.replace(' ','')}
@@ -1414,7 +1413,7 @@ add feature
   [Arguments]  ${username}  ${tender_uaid}  ${complaintID}  ${cancellation_data}
   Перейти на сторінку тендера за потреби
   Відкрити розділ вимог і скарг
-  Click Element  xpath=//div[@id='${complaintID}']//*[@name='CancelComplaint']
+  Wait Scroll Click  xpath=//div[@id='${complaintID}']//*[@id='qa_CancelComplaint']
   Sleep  1  # wait for full input
   Wait and Input    id=cancellationReason      ${cancellation_data.data.cancellationReason}
   Click Element     id=btnCancelComplaint
@@ -1594,11 +1593,10 @@ Input String
 
 
 Натиснути кнопку зберегти зміни у тендері
-  ${mutex_text}=  Set Variable  'Access to the path'
   :FOR  ${i}  IN RANGE  5
   \       Capture Page Screenshot
   \       Wait Scroll Click     id=SaveChanges
-  \       ${mutex_status}=  Run Keyword And Return Status  Wait Until Page Contains  ${mutex_text}  5
+  \       ${mutex_status}=  Run Keyword And Return Status  Wait Until Page Contains  Access to the path  3
   \       Return From Keyword If  '${mutex_status}'=='False'
   \       Sleep  20
 
@@ -1712,8 +1710,13 @@ Input String
 
 Отримати інформацію про qualificationPeriod.endDate
   Reload Page
-  ${datetime}=      Отримати текст із поля і показати на сторінці  qualificationPeriod.endDate
-  Run Keyword And Return  convert_etender_date_to_iso_format  ${datetime}
+  ${procedureType}=  Set Variable  ${USERS.users['${tender_owner}'].method_type}
+  Run Keyword If  '${procedureType}' in ('closeFrameworkAgreementUA')  Sleep  300
+  ...  ELSE  Sleep  300
+    # поле появляется на UI, когда заканчивается период. Тест ожидает сразу
+
+  ${return_value}=   Get Text  id=qualificationPeriod_endDate
+  Run Keyword And Return  convert_etender_date_to_iso_format  ${return_value}
 
 Отримати інформацію про qualifications[0].status
   Reload Page
@@ -2535,7 +2538,7 @@ Wait for upload before signing
 
   Wait and Select By Label      id=docType  Підписаний договір
   ${file_path}  ${file_name}  ${file_content}=   create_fake_doc
-  Завантажити док  ${username}  ${file_path}  xpath=//button[@ng-model="documentsToAdd"]
+  Завантажити док  ${username}  ${file_path}  id=qa_contractDocAdd
   Run Keyword And Ignore Error  Відкрити розділ Деталі Закупівлі
   Run Keyword And Ignore Error  Wait Scroll Click     id=qa_EditContractInfo
   ${methodType}=  Get From Dictionary  ${USERS.users['${username}']}  method_type
@@ -2577,27 +2580,67 @@ Wait for upload before signing
 
 Редагувати поле договору value.amount
   [Arguments]  ${value}
+  Reload Page
+  Дочекатись зникнення blockUI
   Input String  id=qa_valueAmount   ${value}
+#  отловить ошибки валидации на UI:
+#  ${error1}=  Run Keyword And Return Status  Element Should Be Visible  id=Amount should be less or equal to awarded amount
+#  ${error2}=  Run Keyword And Return Status  Element Should Be Visible  id=Amount should be greater than amountNet and differ by no more than 20.0%
+#  ${status}=  Set Variable  ${error1} or  ${error2}
+#  Run Keyword And Return If  ${status}==True  Зберегти інформацію про контракт
   Зберегти інформацію про контракт
 
 
 Редагувати поле договору value.amountNet
   [Arguments]  ${value}
+  Reload Page
+  Дочекатись зникнення blockUI
   Input String  id=qa_valueAmountNet    ${value}
   # TODO ↓
   Wait and Input    id=contractNumber  contractnumber
   ${time_now_tmp}=     get_time_now
   ${date_now_tmp}=     get_date_now
   ${date_future_tmp}=  get_date_10d_future
-  Input text  name=dateSigned  ${date_now_tmp}
-  Input text  name=timeSigned  ${time_now_tmp}
-  Input text  name=endDate     ${date_future_tmp}
+  Wait and Input  name=dateSigned  ${date_now_tmp}
+  Wait and Input  name=timeSigned  ${time_now_tmp}
+  Wait and Input  name=endDate     ${date_future_tmp}
   Зберегти інформацію про контракт
+
+
+Встановити дату підписання угоди
+  [Arguments]  ${username}  ${tender_uaid}  ${contract_index}  ${dateSigned}
+  Reload Page
+  ${date}=    convert_date_to_etender_format  ${dateSigned}
+  ${time}=    convert_time_to_etender_format  ${dateSigned}
+  Wait and Input  id=qa_datSignedDate  ${date}
+  Wait and Input  id=qa_datSignedTime  ${time}
+  Зберегти інформацію про контракт
+
+
+Вказати період дії угоди
+  [Arguments]  ${username}  ${tender_uaid}  ${contract_index}  ${startDate}  ${endDate}
+  Reload Page
+  ${startDate}=    convert_date_to_etender_format  ${startDate}
+  ${endDate}=    convert_date_to_etender_format  ${endDate}
+  Log  ${startDate}
+  Wait and Input  id=qa_contractPeriodStart  ${startDate}
+  Wait and Input  id=qa_contractPeriodEnd  ${endDate}
+  Зберегти інформацію про контракт
+
+
+Завантажити документ в угоду
+  [Arguments]  ${username}  ${file}  ${tender_uaid}  ${contract_id}
+  Reload Page
+  Дочекатись зникнення blockUI
+  Wait and Select By Label  id=docType  Підписаний договір
+  Завантажити док  ${username}  ${file}  id=qa_contractDocAdd
+
 
 Зберегти інформацію про контракт
   Wait Scroll Click     id=qa_saveContractInfo
   Wait and Click    id=qa_saveData
-  Sleep  2
+  Дочекатись зникнення blockUI
+
 
 Відповісти на вимогу про виправлення умов закупівлі
   [Arguments]  ${username}  ${tender_uaid}  ${complaintID}  ${answer_data}
@@ -2740,9 +2783,11 @@ temporary keyword for title update
 
 Підтвердити переможця
   Wait and Click    id=qa_accept_award
+  Sleep  10
 
 Відхилити переможця
   Wait and Click    id=qa_disqualify_award
+  Sleep  10
 
 Перейти до оцінки кандидата
   Sleep  20
@@ -2825,10 +2870,12 @@ Wait for doc upload in qualification
 Перевести тендер у блокування перед аукціоном
   Reload Page
   Sleep  10
-  Wait Scroll Click     id=qa_startStandStillPeriod
+  Run Keyword And Ignore Error  Wait Scroll Click     id=qa_startStandStillPeriod
   Sleep  5
   Reload Page
-  Wait Until Page Contains   Блокування перед аукціоном
+  ${procedureType}=  Set Variable  ${USERS.users['${tender_owner}'].method_type}
+  Run Keyword If  '${procedureType}' in ('competitiveDialogueUA', 'competitiveDialogueEU')  Wait Until Page Contains   Проведення переговорів
+  ...  ELSE  Wait Until Page Contains   Блокування перед аукціоном
 
 
 Затвердити остаточне рішення кваліфікації
