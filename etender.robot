@@ -62,7 +62,7 @@ ${locator.awards[0].suppliers[0].identifier.id}                xpath=//span[@id=
 ${locator_document_title}                                      xpath=//td[contains(@class,"doc-name")]//a[contains(.,"XX_doc_id_XX")]
 ${locator_document_href}                                       xpath=//td[contains(@class,"doc-name")]//a[contains(.,"XX_doc_id_XX")]//ancestor::td[contains(@class,"doc-name")]//preceding-sibling::td//a@href
 ${locator_document_description}                                xpath=//td[contains(@class,"doc-name")]//a[contains(.,"XX_doc_id_XX")]/following-sibling::p
-${locator_document_of}                                         xpath=//td[contains(@class,"doc-name")]//a[contains(.,"d-XX_doc_id_XX")]/parent::td@data-document-of
+${locator_document_documentOf}                                 xpath=//td[contains(@class,"doc-name")]//a[contains(.,"XX_doc_id_XX")]/parent::td[@data-document-of]
 ${locator.value.currency}                                      id=tenderCurrency
 ${locator.value.valueAddedTaxIncluded}                         id=includeVat
 ${locator.bids}                                                id=ParticipiantInfo_0
@@ -142,6 +142,16 @@ Wait and Get Attribute
   Wait Until Keyword Succeeds  15x  0s  Wait Until Page Does Not Contain Element  xpath=//div[@class='blockUI blockOverlay']  2
 
 
+Click One Of Button
+  [Documentation]  Use this keyword when you have 2 buttons for one logic
+        ...        [Arguments] locator_1 - frequent case, locator_2 - other cases
+  [Arguments]  ${locator_1}  ${locator_2}
+  ${present}=  Run Keyword And Return Status  Element Should Be Visible  ${locator_1}
+  Run Keyword If  '${present}'=='True'  Wait Scroll Click  ${locator_1}
+  ...   ELSE  Wait Scroll Click  ${locator_2}
+  Дочекатись зникнення blockUI
+
+
 Підготувати дані для оголошення тендера
   [Arguments]  ${username}  ${tender_data}  ${username_2}
   Log  ${tender_data}
@@ -164,11 +174,18 @@ Wait and Get Attribute
   Log  ${username_2}
   [Return]  ${tender_data}
 
+
 Відкрити всі лоти
   ${clicked}=  Wait and Get Attribute  xpath=//*[@id="openAllLots"]     class
   Return From Keyword If  'clicked' in '${clicked}'
   Wait Scroll Click     id=openAllLots
   Дочекатись зникнення blockUI
+
+
+Отримати інформацію про procurementMethodType
+  Дочекатись зникнення blockUI
+  ${methodType}=    Get Text   id=procedureType
+  Run Keyword And Return  get_method_type  ${methodType.lower()}
 
 
 Login
@@ -183,9 +200,12 @@ Login
   Go To  ${USERS.users['${username}'].homepage}
   Дочекатись зникнення blockUI
 
+
 Створити тендер
-  [Arguments]  ${username}  ${tender_data}
+  [Arguments]  ${username}  ${tender_data}  ${tender_uaid}  ${arg_1}=None
   #Set To Dictionary  ${USERS.users['${username}']}  tender_data=${tender_data}
+  Log  ${tender_uaid}
+#  Log  ${arg2}
   ${tender_data}=       Get From Dictionary     ${tender_data}              data
   Log  ${tender_data}
   ${status}  ${methodType}=  Run Keyword And Ignore Error  Get From Dictionary  ${tender_data}  procurementMethodType
@@ -225,7 +245,7 @@ Login
   Додати донора при наявності  ${tender_data}
   Додати дати при наявності    ${tender_data}  ${methodType}
   Додати нецінові показники при наявності       ${tender_data}
-  Sleep   10
+  Sleep   15
   Wait Scroll Click     id=createTender
   Sleep   60
   Reload Page
@@ -250,11 +270,33 @@ Login
 
 Створити тендер другого етапу
   [Arguments]  ${username}  ${tender_data}
+  Log  ${tender_data}
   ${file_path}=  Get Variable Value  ${ARTIFACT_FILE}  artifact.yaml
   ${ARTIFACT}=  load_data_from  ${file_path}
   Set Global Variable  ${global_tender_id}    ${ARTIFACT.tender_uaid}
-
+  Wait and Click  id=qa_tenders
   Wait and Input  xpath=//input[@placeholder= 'Пошук закупівлі']   ${global_tender_id}
+  Wait and Click  xpath=//a[@ng-click= 'search()']
+  Sleep  10
+  Wait and Click  xpath=//a[contains(@href, 'tender/')]
+  Wait Scroll Click  id=qa_createAgrSelect
+  ${tender_data}=       Get From Dictionary     ${tender_data}              data
+  Log  ${tender_data}
+  ${items}=             Get From Dictionary     ${tender_data}              items
+  Log  ${items[0]}
+  ${methodType}=  Get From Dictionary  ${tender_data}  procurementMethodType
+  set global variable  ${global_procedure_type}  ${methodType}
+  Sleep  15
+  Wait and Select By Label  xpath=//select[@id='guarantee_0']  Відсутнє
+  Wait and Click  xpath=//input[@type= 'checkbox']
+  Sleep  5
+  Wait Scroll Click  id=createTender
+  Sleep   10
+  Reload Page
+  Wait Until Keyword Succeeds        10 min  30 sec  Дочекатися завершення обробки тендера
+  Зберегти посилання
+  Run Keyword And Return  Get Text  ${locator.tenderId}
+
 
 
 Заповнити поля ESCO
@@ -291,7 +333,6 @@ Login
   ${valueTax}=           Get From Dictionary         ${tender_data.value}  valueAddedTaxIncluded
 
   Input text    xpath=//input[@ng-model = 'data.maxAwardsCount']  ${AwardsCountToStr}
-
   ${status}  ${lots}=  Run Keyword And Ignore Error  Get From Dictionary  ${tender_data}  lots
   Log  ${lots[0]}
   log to console  presence of lots: ${status}
@@ -376,6 +417,15 @@ Login
 Натиснути додати лот
   Wait and Click    id=addLot_
 
+
+Заповнити мінімальний крок JavaScript
+  [Arguments]  ${index}  ${value}
+  Execute JavaScript  document.querySelector("decimal-mask-input[data='lot.minimalStep.amount'] input[id='minimalStep_${index}']").value=${value}
+  Execute JavaScript  $("decimal-mask-input[data='lot.minimalStep.amount'] input[id='minimalStep_${index}']").trigger('change')
+#  Execute JavaScript  document.querySelector("decimal-mask-input[data='lot.minimalStep.amount'] input[type='number']").value=${value}
+#  Execute JavaScript  $("decimal-mask-input[data='lot.minimalStep.amount'] input[type='number']").trigger('change')
+
+
 Заповнити інформацію про лот
   [Arguments]  ${lot}  ${index}
   Wait and Input    id=lotTitle_${index}        ${lot['title']}
@@ -383,7 +433,7 @@ Login
   Run Keyword If  '${USERS.users['Etender_Owner']['method_type']}' in ('aboveThresholdEU', 'aboveThresholdUA.defense', 'closeFrameworkAgreementUA','competitiveDialogueEU')  Input Text   id=lotTitleEn_${index}        ${lot['title_en']}
   Input Text        id=lotDescription_${index}  ${lot['description']}
   Input String      id=lotValue_${index}        ${lot['value']['amount']}
-  Run Keyword Unless  '${USERS.users['Etender_Owner']['method_type']}' in ('negotiation')  Input String      id=minimalStep_${index}     ${lot['minimalStep']['amount']}
+  Run Keyword Unless  '${USERS.users['Etender_Owner']['method_type']}' in ('negotiation')  Заповнити мінімальний крок JavaScript  ${index}  ${lot['minimalStep']['amount']}
 
 
 Заповнити інформацію про лот ESCO
@@ -466,13 +516,18 @@ Login
   :FOR  ${i}  IN RANGE  ${features_count}
   \     add feature  ${features[${i}]}  0
 
+
 Додати мінімальний крок при наявності
   [Arguments]  ${data}
   ${status}  ${step_rate}=  Run Keyword And Ignore Error  Get From Dictionary  ${data.minimalStep}  amount
   log to console  check presence of minimalStep.amount in dictionary: ${status}
   Return From Keyword If  '${status}' != 'PASS'
   ${step_rateToStr}=  float_to_string_2f  ${step_rate}   # at least 2 fractional point precision, avoid rounding
-  Input text  id=minimalStep_0  ${step_rateToStr}
+#  Input text  id=minimalStep_0  ${step_rateToStr}
+  Заповнити мінімальний крок JavaScript  0  ${step_rateToStr}
+  # маска мешает корректному заполнению поля
+  Capture Page Screenshot
+
 
 Додати причину з описом при наявності
   [Arguments]  ${data}
@@ -582,7 +637,7 @@ add feature
   ${plan_tender_type}=       Get From Dictionary     ${plan.tender}  procurementMethodType
   ${tender_type_value}=             get_procedure_type      ${plan_tender_type}
   Wait and Select By Label  xpath=//select[@name="procedureType"]          ${tender_type_value}
-
+  Sleep  2
   Wait and Input        id=description          ${description}
   Input text            id=value                ${amount}
 
@@ -591,6 +646,7 @@ add feature
   Select From List By Label     xpath=//select[@ng-model="data.projectBudget.period.startDate"]     2020
   Select From List By Label     xpath=//select[@ng-model="data.projectBudget.period.endDate"]       2020
   Select From List By Index     xpath=//select[@name="startDateMonth"]          6
+
   Select From List By Label     xpath=//select[@name = 'procedureType']  ${procurementMethodTypeStr}
   Wait and Click        id=qa_mainPlanClassification
   Wait and Input        id=classificationCode                            ${cpv_id}
@@ -619,7 +675,7 @@ add feature
   \     ${delivery_date}=       Get From Dictionary         ${items[${i}].deliveryDate}     endDate
   \     ${delivery_date}=       convert_date_to_etender_format  ${delivery_date}
   \     Wait and Input          id=deliveryDate${i}         ${delivery_date}
-
+  Sleep  20
   Wait Scroll Click     id=qa_createPlan
   Дочекатись зникнення blockUI
   Wait Until Keyword Succeeds   2x  10 sec  Дочекатися завершення обробки плану
@@ -654,9 +710,11 @@ add feature
   [Arguments]  ${new_value}
   Wait and Input  id=description  ${new_value}
 
+
 Редагувати поле budget.amount
   [Arguments]  ${new_value}
-  Wait and Input  id=value  '${new_value}'
+  JavascriptInput  'value'  '${new_value}'  # маска мешает корректному заполнению поля
+
 
 Редагувати поле items[0].deliveryDate.endDate
   [Arguments]  ${new_value}
@@ -665,7 +723,12 @@ add feature
 
 Редагувати поле items[0].quantity
   [Arguments]  ${new_value}
-  Wait and Input  id=itemsQuantity0  ${new_value}
+  ${is_prm_visible}=  Run Keyword And Return Status  Element Should Be Visible  id=itemsQuantity0
+  Sleep  10
+  run keyword if  '${is_prm_visible}'=='False'  Wait and Click  id=treeTitle-0
+  Sleep  5
+  Wait and Input  id=itemsQuantity00  '${new_value}'
+
 
 Редагувати поле budget.period
   [Arguments]  ${new_value}
@@ -790,6 +853,8 @@ add feature
   # Autotest cannot upload file directly, because there is no INPUT element on page. Need to click on button first,
   # but this will open OS file selection dialog. So we close and reopen browser to get rid of this dialog
   ${tmp_location}=  Get Location
+  Дочекатись зникнення blockUI
+  Log  ${locator}
   Wait Scroll Click     ${locator}
   Choose File     xpath=//input[@type="file"]  ${file}
   Run Keyword Unless  '${locator2}'=='-1'  Wait and Click    ${locator2}   #  if need to press key to upload like in awards
@@ -993,6 +1058,7 @@ add feature
 
 Перейти на сторінку контракту
   Перейти на сторінку тендера за потреби
+  Reload Page
   Run Keyword And Ignore Error  Wait Scroll Click     id=qa_EditContractInfo
   Run Keyword And Ignore Error  Wait Scroll Click     id=qa_FillContractInfo
   Дочекатись зникнення blockUI
@@ -1014,19 +1080,22 @@ add feature
   Wait Scroll Click     id=naviTitle1
   Дочекатись зникнення blockUI
 
+
+Дочекатися завершення імпорту плану
+  [Arguments]  ${plan_id}
+  Reload Page
+  Wait Until Page Contains  ${plan_id}
+  ${plan_id}=                        Get Text  id=planId  #id=planId_0
+  Log  ${plan_id}
+  Should Match Regexp                ${plan_id}  UA-P-\\d{4}-.*
+
+
 Пошук плану по ідентифікатору
-  [Arguments]  ${username}  ${TENDER_UAID}
-  Log  ${username}
-  Go To  ${USERS.users['${username}'].homepage}
+  [Arguments]  ${username}  ${plan_id}
   Sleep  30
-  Wait and Click    xpath=//li[@id = 'naviTitle2']//span[@class = 'w100 ng-binding']  20
+  Go To  ${USERS.users['${username}'].homepage.split('#')[0]}plan?planid=${plan_id}
   Дочекатись зникнення blockUI
-  Wait and Input    xpath=//input[@type='text' and @placeholder='Пошук за номером плану']   ${TENDER_UAID}
-  Wait and Click    xpath=//span[@class = 'icon search']
-  Дочекатись зникнення blockUI
-  Wait Until Page Contains  ${TENDER_UAID}  10
-  Wait And Click  xpath=//td[contains(@data-title, "Конкретна Назва")]/a
-  Дочекатись зникнення blockUI
+  Дочекатися завершення імпорту плану  ${plan_id}
 
 
 Завантажити документ в ставку
@@ -1086,6 +1155,7 @@ add feature
 Вибрати неціновий критерій
   [Arguments]  ${feature_id}  ${value}
   ${index}=  get_feature_index  ${value}
+  Sleep  5
   Select From List By Index  xpath=//span[contains(.,'${feature_id}')]/../..//select  ${index}
   Sleep  1
 
@@ -1094,7 +1164,7 @@ add feature
   Select Checkbox  id=selfQualified
 
 Подати цінову пропозицію
-  [Arguments]  ${username}  ${tender_uaid}  ${bid_data}  ${lots_ids}  ${features_ids}
+  [Arguments]  ${username}  ${tender_uaid}  ${bid_data}  ${lots_ids}  ${features_ids}=None
   Перейти на сторінку тендера за потреби
   sleep  5
   Відкрити розділ Деталі Закупівлі
@@ -1109,7 +1179,7 @@ add feature
 
   ${x}=  Run Keyword  Отримати інформацію про procurementMethodType
   Set Global Variable  ${global_procedure_type}  ${x}
-  Run Keyword And Return If  '${global_procedure_type}' in ('competitiveDialogueUA', 'competitiveDialogueEU')  Пропустити заповнення нецінових показників
+  Run Keyword And Return If  '${global_procedure_type}' in ('competitiveDialogueUA', 'competitiveDialogueEU', 'closeFrameworkAgreementSelectionUA')  Пропустити заповнення нецінових показників
   Run Keyword Unless  ${features_ids} is None  Заповнити нецінові критерії  ${features_ids}  ${bid_data.data.parameters}
   Click Element     id=createBid_0
   Дочекатись зникнення blockUI
@@ -1211,7 +1281,8 @@ add feature
 
 
 Отримати інформацію із плану про status
-  Run Keyword And Return  Wait and Get Text  id=qa_planStatus
+  ${return}=  Wait and Get Text  id=qa_planStatus
+  Run Keyword And Return  convert_etender_string_to_common_string  ${return}
 
 
 Отримати інформацію із плану про items[${n}].description
@@ -1375,6 +1446,7 @@ add feature
   [Arguments]  ${username}  ${tender_uaid}  ${complaint}  ${target}  ${file}  ${award_index}=0
   Перейти на сторінку тендера за потреби
   ${complaintID}=  Створити чернетку вимоги  ${username}  ${tender_uaid}  ${complaint}  ${target}  ${award_index}
+  Log  ${complaintID}
   Завантажити док  ${username}  ${file}  xpath=//div[contains(@id,"${complaintID}")]//button[@id="addClaimDoc"]
   Відкрити розділ вимог і скарг
   Wait Scroll Click     id=qa_escalateClaimToComplaint
@@ -1395,7 +1467,9 @@ add feature
   Wait and Click     id=btnAddComplaint
   Sleep  10
   Дочекатись зникнення blockUI
-  Run Keyword And Return  Get text  xpath=//complaint[contains(.,"${claim.data.description}")]//div[@id='complaintid']
+#  Run Keyword And Return  Get text  xpath=//complaint[contains(.,"${claim.data.description}")]//div[@id='complaintid']
+  Run Keyword And Return  Get text  xpath=//*[@name="title" and contains(., "${claim.data.title}")]//ancestor::*[@uib-accordion-group]//div[@id="complaintid"]
+
 
 Створити чернетку вимоги про виправлення умов лоту
   [Arguments]  ${username}  ${tender_uaid}   ${claim}  ${target}
@@ -1413,6 +1487,8 @@ add feature
   [Arguments]  ${username}  ${tender_uaid}  ${complaintID}  ${cancellation_data}
   Перейти на сторінку тендера за потреби
   Відкрити розділ вимог і скарг
+  ${status}=  Run Keyword And Return Status  Розкрити інформацію про скаргу  ${complaintID}
+  Run Keyword If  '${status}'=='FAIL'  Run Keywords  Reload Page  AND  Відкрити розділ вимог і скарг  AND  Розкрити інформацію про скаргу  ${complaintID}
   Wait Scroll Click  xpath=//div[@id='${complaintID}']//*[@id='qa_CancelComplaint']
   Sleep  1  # wait for full input
   Wait and Input    id=cancellationReason      ${cancellation_data.data.cancellationReason}
@@ -1423,6 +1499,8 @@ add feature
   [Arguments]  ${username}  ${tender_uaid}  ${complaintID}  ${cancellation_data}
   Перейти на сторінку тендера за потреби
   Відкрити розділ вимог і скарг
+  ${status}=  Run Keyword And Return Status  Розкрити інформацію про скаргу  ${complaintID}
+  Run Keyword If  '${status}'=='FAIL'  Run Keywords  Reload Page  AND  Відкрити розділ вимог і скарг  AND  Розкрити інформацію про скаргу  ${complaintID}
   Click Element  xpath=//div[@id='${complaintID}']//*[@id='qa_SetStoppingComplaint']
   Sleep  1  # wait for full input
   Wait and Input    xpath=//form[@name='setStoppingComplaint']//textarea[@placeholder='Причини відхилення']      ${cancellation_data.data.cancellationReason}
@@ -1461,10 +1539,14 @@ Select From List By Partial Label
   Run Keyword If  '${status}'=='FAIL'  Run Keywords  Reload Page  AND  Відкрити розділ вимог і скарг  AND  Розкрити інформацію про скаргу  ${complaintID}
   Run Keyword And Return  Отримати інформацію із скарги про ${field}  ${complaintID}
 
+
 Розкрити інформацію про скаргу
   [Arguments]  ${complaintID}
   ${is_expanded}=  Get Element Attribute  xpath=//div[@id='${complaintID}']/div@aria-selected
-  Run Keyword If  '${is_expanded}'=='false'  Click Element  xpath=//div[@id='${complaintID}']/div
+  Run Keyword If  '${is_expanded}'=='false'
+  ...  Run Keywords  Wait Scroll Click  xpath=//div[@id='${complaintID}']/div
+  ...  AND  Sleep  2  # UI can be freezed
+
 
 Отримати інформацію із скарги про title
   [Arguments]  ${complaintID}
@@ -1476,6 +1558,7 @@ Select From List By Partial Label
 
 Отримати інформацію із скарги про resolutionType
   [Arguments]  ${complaintID}
+  Дочекатись зникнення blockUI
   ${resolutionType}=      Wait and Get Text  xpath=//div[@id='${complaintID}']//*[@name='resolutionType']
   Run Keyword And Return  convert_etender_string_to_common_string  ${resolutionType.lower()}
 
@@ -1520,7 +1603,10 @@ Select From List By Partial Label
   ${satisfied}=  Get From Dictionary  ${data}  data
   ${satisfied}=  Get From Dictionary  ${satisfied}  satisfied
   ${satisfied}=  Convert To String    ${satisfied}
-  Click Element  xpath=//div[@id='${complaintID}']//button[contains(@click-and-disable,'${satisfied.lower()}')]
+  ${status}=  Run Keyword And Return Status  Розкрити інформацію про скаргу  ${complaintID}
+  Run Keyword If  '${status}'=='FAIL'  Run Keywords  Reload Page  AND  Відкрити розділ вимог і скарг  AND  Розкрити інформацію про скаргу  ${complaintID}
+  Wait Scroll Click  xpath=//div[@id='${complaintID}']//button[contains(@click-and-disable,'${satisfied.lower()}')]
+
 
 Відповісти на запитання
   [Arguments]  ${username}  ${tender_uaid}  ${answer_data}  ${question_id}
@@ -1554,6 +1640,10 @@ JavascriptClick
   #${element_xpath}=       Replace String      ${element_xpath}        \"  \\\"
   Execute JavaScript  document.evaluate(${element_xpath}, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null).snapshotItem(0).click();
 
+JavascriptInput
+  [Arguments]  ${locator_id}  ${value}
+  Execute JavaScript  document.getElementById(${locator_id}).value=${value}
+
 Input String
   [Arguments]  ${locator}  ${value}
   [Documentation]  Converts value to string and inputs to locator field
@@ -1564,8 +1654,15 @@ Input String
 Внести зміни в тендер
   [Arguments]  ${username}  ${tender_uaid}  ${field}  ${new_value}
   Перейти до редагування тендера    ${username}  ${tender_uaid}
+  Run Keyword If  '${global_procedure_type}'=='closeFrameworkAgreementSelectionUA'  Редагувати поле minimalStep для Selection
   Редагувати поле тендера  ${field}  ${new_value}
+  Sleep  10
   Зберегти зміни в тендері
+
+Редагувати поле minimalStep для Selection
+  Clear Element Text  id=minimalStepPer
+  Wait and Input  id=minimalStepPer  0.5
+
 
 Редагувати поле тендера
   [Arguments]  ${field}  ${new_value}
@@ -1620,11 +1717,19 @@ Input String
   [Arguments]  ${lot_id}  ${new_value}
   ${new_value}=  float_to_string_2f  ${new_value}  # at least 2 fractional point precision, avoid rounding
   Input text  id=lotValue_0  ${new_value}
+  Execute JavaScript  document.querySelector("decimal-mask-input[data='lot.value.amount'] input[id='lotValue_0']").value=${new_value}
+  Execute JavaScript  $("decimal-mask-input[data='lot.value.amount'] input[id='lotValue_0']").trigger('change')
+  Execute JavaScript  document.querySelector("decimal-mask-input[data='lot.value.amount'] input[name='lotValue_0']").value=${new_value}
+  Execute JavaScript  $("decimal-mask-input[data='lot.value.amount'] input[name='lotValue_0']").trigger('change')
+  Capture Page Screenshot
 
 Редагувати поле лота minimalStep.amount
   [Arguments]  ${lot_id}  ${new_value}
   ${new_value}=  float_to_string_2f  ${new_value}  # at least 2 fractional point precision, avoid rounding
-  Input text  id=minimalStep_0  ${new_value}
+  Execute JavaScript  document.querySelector("decimal-mask-input[data='lot.minimalStep.amount'] input[id='minimalStep_0']").value=${new_value}
+  Execute JavaScript  $("decimal-mask-input[data='lot.minimalStep.amount'] input[id='minimalStep_0']").trigger('change')
+  Capture Page Screenshot
+
 
 Редагувати поле лота description
   [Arguments]  ${lot_id}  ${new_value}
@@ -1640,8 +1745,7 @@ Input String
   Reload Page
   Дочекатись зникнення blockUI
   ${return_value}=   Отримати текст із поля і показати на сторінці   status
-  ${return_value}=   convert_etender_string_to_common_string  ${return_value.lower()}
-  [Return]  ${return_value}
+  Run Keyword And Return   convert_etender_string_to_common_string  ${return_value.lower()}
 
 Отримати інформацію із тендера
   [Arguments]  ${username}  ${tender_uaid}  ${field}
@@ -1683,35 +1787,31 @@ Input String
   run keyword and return  Wait and Get Attribute  id=frameworkAgreementTerm  termvalue
 
 Отримати інформацію про agreements[${n}].agreementID
-  Run Keyword And Return  Wait and Get Text  id=qa_agreementId${n}
+  Run Keyword And Return  Wait and Get Text  id=qa_agreementId
 
 Отримати інформацію про agreements[${n}].status
   ${agreements_status}=  Wait and Get Text  xpath=//div[@ng-bind= '::agreement.status.name']
-  Run Keyword And Return  get_helper_dictionary  ${agreements_status}
+  Run Keyword And Return  convert_etender_string_to_common_string  ${agreements_status}
 
 
 Отримати текст із поля і показати на сторінці
   [Arguments]   ${fieldname}  # TODO remove
   Wait Until Element Is Visible    ${locator.${fieldname}}    30
-  ${return_value}=   Get Text  ${locator.${fieldname}}
-  [return]  ${return_value}
+  Run Keyword And Return  Get Text  ${locator.${fieldname}}
 
-Отримати інформацію про procurementMethodType
-  ${methodType}=    Get Text   id=procedureType
-  Run Keyword And Return  get_method_type  ${methodType.lower()}
 
 Отримати інформацію про complaintPeriod.endDate
   ${complaintperiod}=       Get Text    id=complaintPeriod
   Run Keyword And Return    convert_etender_date_to_iso_format    ${complaintperiod}
 
 Отримати інформацію про title
-  ${return_value}=   Отримати текст із поля і показати на сторінці   title
-  [return]  ${return_value}
+  Run Keyword And Return   Отримати текст із поля і показати на сторінці   title
+
 
 Отримати інформацію про qualificationPeriod.endDate
   Reload Page
-  ${procedureType}=  Set Variable  ${USERS.users['${tender_owner}'].method_type}
-  Run Keyword If  '${procedureType}' in ('closeFrameworkAgreementUA')  Sleep  300
+  ${procedureType}=  Run Keyword  Отримати інформацію про procurementMethodType
+  Run Keyword If  '${procedureType}' in ('closeFrameworkAgreementUA')  Sleep  600
   ...  ELSE  Sleep  300
     # поле появляется на UI, когда заканчивается период. Тест ожидает сразу
 
@@ -1722,25 +1822,22 @@ Input String
   Reload Page
   Відкрити розділ Деталі Закупівлі
   ${return_value}=  Отримати текст із поля і показати на сторінці  qualifications[0].status
-  ${return_value}=  convert_etender_string_to_common_string  ${return_value}
-  [return]  ${return_value}
+  Run Keyword And Return  convert_etender_string_to_common_string  ${return_value}
 
 Отримати інформацію про qualifications[1].status
   Reload Page
   Відкрити розділ Деталі Закупівлі
   ${return_value}=  Отримати текст із поля і показати на сторінці  qualifications[1].status
-  ${return_value}=  convert_etender_string_to_common_string  ${return_value}
-  [return]  ${return_value}
+  Run Keyword And Return  convert_etender_string_to_common_string  ${return_value}
 
 Отримати інформацію про description
-  ${return_value}=   Отримати текст із поля і показати на сторінці   description
-  [return]  ${return_value}
+  Run Keyword And Return   Отримати текст із поля і показати на сторінці   description
+
 
 Отримати інформацію про minimalStep.amount
   ${return_value}=   Отримати текст із поля і показати на сторінці   minimalStep.amount
   ${return_value}=   parse_currency_value_with_spaces   ${return_value}
-  ${return_value}=   Convert To Number   ${return_value}
-  [return]  ${return_value}
+  Run Keyword And Return   Convert To Number   ${return_value}
 
 Отримати інформацію про minimalStepPercentage
   ${return_value}=   Wait and Get Attribute  //span[contains(@id, 'minimalStepPercentage')]  value
@@ -1782,12 +1879,10 @@ Input String
   ${return_value}=   Отримати текст із поля і показати на сторінці  value.amount
   ${return_value}=   Set Variable  ${return_value.replace(u'\xa0','')}  # nbsp converting attempt
   ${return_value}=   Set Variable  ${return_value.replace(' ','')}
-  ${return_value}=   Convert To Number   ${return_value.replace(',','.')}
-  [return]  ${return_value}
+  Run Keyword And Return   Convert To Number   ${return_value.replace(',','.')}
 
 Отримати інформацію про value.currency
-  ${return_value}=   Отримати текст із поля і показати на сторінці   value.currency
-  [return]  ${return_value}
+  Run Keyword And Return   Отримати текст із поля і показати на сторінці   value.currency
 
 Отримати інформацію про value.valueAddedTaxIncluded
   ${return_value}=   Отримати текст із поля і показати на сторінці   value.valueAddedTaxIncluded
@@ -1796,45 +1891,40 @@ Input String
   Run Keyword And Return  Convert To Boolean   ${return_value}
 
 Отримати інформацію про causeDescription
-  ${return_value}=  Отримати текст із поля і показати на сторінці  causeDescription
-  [return]  ${return_value}
+  Run Keyword And Return  Отримати текст із поля і показати на сторінці  causeDescription
 
 Отримати інформацію про cause
   ${return_value}=  Отримати текст із поля і показати на сторінці  cause
-  ${return_value}=  convert_etender_string_to_common_string  ${return_value}
-  [return]  ${return_value}
+  Run Keyword And Return  convert_etender_string_to_common_string  ${return_value}
 
 
 Отримати інформацію про contracts[${n}].value.amountNet
   Перейти на сторінку тендера за потреби
+  Run Keyword And Ignore Error  Відкрити розділ Деталі Закупівлі
   Відкрити всі лоти
-  ${n}=  Convert To String  ${n}
-  ${n}=  Run Keyword If  '${n}'=='0'  Evaluate  ${n}+1  # ELSE  Set Variable  0
+  ${n}=  Run Keyword  index_adapter  ${n}
   ${return_value}=  Get Text  xpath=(//span[@id="qa_contractAmountNet"][${n}])
   ${return_value}=  Set Variable  ${return_value.strip()}
   ${return_value}=  Set Variable  ${return_value.replace(' ','')}
   ${return_value}=  Set Variable  ${return_value.replace(',','.')}
-  ${return_value}=  Convert To Number  ${return_value}
-  [return]  ${return_value}
+  Run Keyword And Return  Convert To Number  ${return_value}
 
 
 Отримати інформацію про contracts[${n}].value.amount
   Перейти на сторінку тендера за потреби
   Відкрити всі лоти
-  ${n}=  Convert To String  ${n}
-  ${n}=  Run Keyword If  '${n}'=='0'  Evaluate  ${n}+1  # ELSE  Set Variable  0
+  ${n}=  Run Keyword  index_adapter  ${n}
   ${return_value}=  Get Text  xpath=(//span[@id="qa_contractAmount"][${n}])
   ${return_value}=  Set Variable  ${return_value.strip()}
   ${return_value}=  Set Variable  ${return_value.replace(' ','')}
   ${return_value}=  Set Variable  ${return_value.replace(',','.')}
-  ${return_value}=  Convert To Number  ${return_value}
-  [return]  ${return_value}
+  Run Keyword And Return  Convert To Number  ${return_value}
 
 
 Отримати інформацію про contracts[${n}].dateSigned
   Перейти на сторінку тендера за потреби
   Відкрити всі лоти
-  ${n}=  Convert To String  ${n}
+  ${n}=  Run Keyword  index_adapter  ${n}
   ${return_value}=  Get Text  xpath=(//div[@id="qa_dateSigned"][${n}])
   Run Keyword And Return  parse_etender_date  ${return_value}  True
 
@@ -1842,7 +1932,7 @@ Input String
 Отримати інформацію про Contracts[${n}].period.startDate
   Перейти на сторінку тендера за потреби
   Відкрити всі лоти
-  ${n}=  Convert To String  ${n}
+  ${n}=  Run Keyword  index_adapter  ${n}
   ${return_value}=  Get Text  xpath=(//span[@id="qa_contractPeriodStartDate"][${n}])
   Run Keyword And Return  cut_letters_and_parse_etender_date  ${return_value}
 
@@ -1850,18 +1940,16 @@ Input String
 Отримати інформацію про contracts[${n}].period.endDate
   Перейти на сторінку тендера за потреби
   Відкрити всі лоти
-  ${i}=  Convert To String  ${n}
-  ${return_value}=  Get Text  xpath=(//span[@id="qa_contractPeriodEndDate"][${i}])
+  ${n}=  Run Keyword  index_adapter  ${n}
+  ${return_value}=  Get Text  xpath=(//span[@id="qa_contractPeriodEndDate"][${n}])
   Run Keyword And Return  cut_letters_and_parse_etender_date  ${return_value}
 
 
 Отримати інформацію про Contracts[${n}].status
   Перейти на сторінку тендера за потреби
   Відкрити всі лоти
-  log  ${n}
-  ${n}=  Run Keyword If  '${n}'=='0'  Evaluate  ${n}+1  ELSE  Set Variable  0
-  ${i}=  Convert To String  ${n}
-  ${return_value}=  Get Text  xpath=(//div[@id="qa_contractStatus"][${i}])
+  ${n}=  Run Keyword  index_adapter  ${n}
+  ${return_value}=  Get Text  xpath=(//div[@id="qa_contractStatus"][${n}])
   Run Keyword And Return  convert_etender_string_to_common_string  ${return_value}
 
 
@@ -1873,12 +1961,10 @@ Input String
   Remove element   ${last_note_id}
 
 Отримати інформацію про tenderId
-  ${return_value}=   Отримати текст із поля і показати на сторінці   tenderId
-  [return]  ${return_value}
+  Run Keyword And Return   Отримати текст із поля і показати на сторінці   tenderId
 
 Отримати інформацію про procuringEntity.name
-  ${return_value}=   Отримати текст із поля і показати на сторінці   procuringEntity.name
-  [return]  ${return_value}
+  Run Keyword And Return   Отримати текст із поля і показати на сторінці   procuringEntity.name
 
 Отримати інформацію про procuringEntity.address.countryName
   ${return_value}=  Отримати текст із поля і показати на сторінці   procuringEntity.address.countryName
@@ -1901,24 +1987,19 @@ Input String
   [return]  ${return_value}
 
 Отримати інформацію про procuringEntity.address.streetAddress
-  ${return_value}=  Отримати текст із поля і показати на сторінці   procuringEntity.address.streetAddress
-  [return]  ${return_value}
+  Run Keyword And Return  Отримати текст із поля і показати на сторінці   procuringEntity.address.streetAddress
 
 Отримати інформацію про procuringEntity.contactPoint.name
-  ${return_value}=  Отримати текст із поля і показати на сторінці   procuringEntity.contactPoint.name
-  [return]  ${return_value}
+  Run Keyword And Return  Отримати текст із поля і показати на сторінці   procuringEntity.contactPoint.name
 
 Отримати інформацію про procuringEntity.contactPoint.telephone
-  ${return_value}=  Отримати текст із поля і показати на сторінці   procuringEntity.contactPoint.telephone
-  [return]  ${return_value}
+  Run Keyword And Return  Отримати текст із поля і показати на сторінці   procuringEntity.contactPoint.telephone
 
 Отримати інформацію про procuringEntity.contactPoint.url
-  ${return_value}=  Отримати текст із поля і показати на сторінці   procuringEntity.contactPoint.url
-  [return]  ${return_value}
+  Run Keyword And Return  Отримати текст із поля і показати на сторінці   procuringEntity.contactPoint.url
 
 Отримати інформацію про procuringEntity.identifier.legalName
-  ${return_value}=  Отримати текст із поля і показати на сторінці   procuringEntity.identifier.legalName
-  [return]  ${return_value}
+  Run Keyword And Return  Отримати текст із поля і показати на сторінці   procuringEntity.identifier.legalName
 
 Отримати інформацію про procuringEntity.identifier.scheme
   ${return_value}=  Отримати текст із поля і показати на сторінці   procuringEntity.identifier.scheme
@@ -1928,32 +2009,27 @@ Input String
   [return]  ${return_value}
 
 Отримати інформацію про procuringEntity.identifier.id
-  ${return_value}=  Отримати текст із поля і показати на сторінці   procuringEntity.identifier.id
-  [return]  ${return_value}
+  Run Keyword And Return  Отримати текст із поля і показати на сторінці   procuringEntity.identifier.id
 
 Отримати інформацію про tenderPeriod.startDate
   ${return_value}=   Отримати текст із поля і показати на сторінці  tenderPeriod.startDate
   ${return_value}=   Set Variable  ${return_value.replace(u'з ','')}
-  ${return_value}=   convert_etender_date_to_iso_format   ${return_value}
-  [return]  ${return_value}
+  Run Keyword And Return   convert_etender_date_to_iso_format   ${return_value}
 
 Отримати інформацію про tenderPeriod.endDate
   ${return_value}=   Отримати текст із поля і показати на сторінці  tenderPeriod.endDate
   ${return_value}=   Set Variable  ${return_value.replace(u'по ','')}
-  ${return_value}=   convert_etender_date_to_iso_format   ${return_value}
-  [return]  ${return_value}
+  Run Keyword And Return   convert_etender_date_to_iso_format   ${return_value}
 
 Отримати інформацію про enquiryPeriod.startDate
   ${return_value}=   Отримати текст із поля і показати на сторінці  enquiryPeriod.startDate
   ${return_value}=   Set Variable  ${return_value.replace(u'з ','')}
-  ${return_value}=   convert_etender_date_to_iso_format   ${return_value}
-  [return]  ${return_value}
+  Run Keyword And Return   convert_etender_date_to_iso_format   ${return_value}
 
 Отримати інформацію про enquiryPeriod.endDate
   ${return_value}=   Отримати текст із поля і показати на сторінці  enquiryPeriod.endDate
   ${return_value}=   Set Variable  ${return_value.replace(u'по ','')}
-  ${return_value}=   convert_etender_date_to_iso_format   ${return_value}
-  [return]  ${return_value}
+  Run Keyword And Return   convert_etender_date_to_iso_format   ${return_value}
 
 
 Отримати дані про clarificationsUntil
@@ -1968,8 +2044,7 @@ Input String
   Log  ${return_value}
   ${return_value}=  add_minutes_to_etender_date  ${return_value}
   Log  ${return_value}
-  ${return_value}=   convert_etender_date_to_iso_format   ${return_value}
-  [return]  ${return_value}
+  Run Keyword And Return   convert_etender_date_to_iso_format   ${return_value}
 
 
 Отримати інформацію про items[0].additionalClassifications[0].id
@@ -1977,8 +2052,7 @@ Input String
   [return]  ${return_value.split(' ')[0]}
 
 Отримати інформацію про items[0].additionalClassifications[0].scheme
-  ${return_value}=   Отримати текст із поля і показати на сторінці  items[0].additionalClassifications[0].scheme
-  [return]  ${return_value}
+  Run Keyword And Return   Отримати текст із поля і показати на сторінці  items[0].additionalClassifications[0].scheme
 
 Отримати інформацію про items[0].additionalClassifications[0].description
   Run Keyword And Return    Отримати текст із поля і показати на сторінці  items[0].additionalClassifications[0].description
@@ -2010,8 +2084,7 @@ Input String
   Дочекатись зникнення blockUI
   Run Keyword And Ignore Error  Відкрити всі лоти
   Відкрити розділ Деталі Закупівлі
-  ${i}=  Evaluate  ${n}+1
-  ${i}=  Convert To String  ${i}
+  ${i}=  Run Keyword  index_adapter  ${i}
   ${return_value}=  Get Text  xpath=//div[@ng-if="award.complaintPeriod.endDate"]/div[2]/span
   ${return_value}=  Set Variable  ${return_value.replace(u'по ','')}
   Run Keyword And Return     convert_etender_date_to_iso_format_and_add_timezone   ${return_value}
@@ -2028,24 +2101,19 @@ Input String
   Run Keyword And Return    Отримати текст із поля і показати на сторінці     awards[0].suppliers[0].address.countryName
 
 Отримати інформацію про awards[0].suppliers[0].address.locality
-  ${return_value}=  Отримати текст із поля і показати на сторінці     awards[0].suppliers[0].address.locality
-  [return]  ${return_value}
+  Run Keyword And Return  Отримати текст із поля і показати на сторінці     awards[0].suppliers[0].address.locality
 
 Отримати інформацію про awards[0].suppliers[0].address.postalCode
-  ${return_value}=  Отримати текст із поля і показати на сторінці     awards[0].suppliers[0].address.postalCode
-  [return]  ${return_value}
+  Run Keyword And Return  Отримати текст із поля і показати на сторінці     awards[0].suppliers[0].address.postalCode
 
 Отримати інформацію про awards[0].suppliers[0].address.region
-  ${return_value}=  Отримати текст із поля і показати на сторінці     awards[0].suppliers[0].address.region
-  [return]  ${return_value}
+  Run Keyword And Return  Отримати текст із поля і показати на сторінці     awards[0].suppliers[0].address.region
 
 Отримати інформацію про awards[0].suppliers[0].address.streetAddress
-  ${return_value}=  Отримати текст із поля і показати на сторінці     awards[0].suppliers[0].address.streetAddress
-  [return]  ${return_value}
+  Run Keyword And Return  Отримати текст із поля і показати на сторінці     awards[0].suppliers[0].address.streetAddress
 
 Отримати інформацію про awards[0].suppliers[0].name
-  ${return_value}=  Отримати текст із поля і показати на сторінці     awards[0].suppliers[0].name
-  [return]  ${return_value}
+  Run Keyword And Return  Отримати текст із поля і показати на сторінці     awards[0].suppliers[0].name
 
 Отримати інформацію про awards[0].value.valueAddedTaxIncluded
   ${return_value}=  Отримати текст із поля і показати на сторінці     awards[0].value.valueAddedTaxIncluded
@@ -2070,8 +2138,7 @@ Input String
   ${part_one}=  Set Variable  ${part_one.replace(u'\xa0','')}
   ${part_one}=  Set Variable  ${part_one.replace(' ','')}
   ${return_value}=  Set Variable  ${part_one}.${part_two}
-  ${return_value}=  Convert To Number  ${return_value}
-  [return]  ${return_value}
+  Run Keyword And Return  Convert To Number  ${return_value}
 
 
 Отримати інформацію про awards[0].suppliers[0].contactPoint.telephone
@@ -2109,8 +2176,7 @@ Input String
   [return]  ${return_value}
 
 Отримати інформацію про awards[0].suppliers[0].identifier.legalName
-  ${return_value}=  Отримати текст із поля і показати на сторінці     awards[0].suppliers[0].identifier.legalName
-  [return]  ${return_value}
+  Run Keyword And Return  Отримати текст із поля і показати на сторінці     awards[0].suppliers[0].identifier.legalName
 
 Отримати інформацію про awards[0].suppliers[0].identifier.id
   ${return_value}=  Отримати текст із поля і показати на сторінці     awards[0].suppliers[0].identifier.id
@@ -2284,31 +2350,52 @@ Input String
   Wait Until Element Is Visible  ${question_locator}  10
   Run Keyword And Return   Get Text  ${question_locator}//*[@name="question_${field}"]
 
+
+#Розкрити інформацію про документ контракту
+#  ${is_expanded}=  Get Element Attribute  xpath=//*[contains(@id, "qa_contractBlock")]//input[contains(@id, "contractDocuments")]@class
+#  Run Keyword If  'ng-empty' in '${is_expanded}'  JavascriptClick  xpath=//*[contains(@id, "qa_contractBlock")]//*[contains(@id, "contractDocuments")]//following-sibling::label/i
+#  Дочекатись зникнення blockUI
+
+
 Отримати інформацію із документа
 # TODO: refactor
   [Arguments]  ${username}  ${tender_uaid}  ${doc_id}  ${field}
+  Log  ${field}
+#  Run Keyword If  ${field}=='documentOf'  Розкрити інформацію про документ контракту
+#  ${doc_id}=  Set Variable  d-0b4ce49
   ${prepared_locator}=  Set Variable  ${locator_document_${field}.replace('XX_doc_id_XX','${doc_id}')}
+#  ${prepared_locator}=  Set Variable  xpath=//td[contains(@class,"doc-name")]//a[contains(.,"${doc_id}")]/parent::td[@data-document-of]
   log  ${prepared_locator}
   Run Keyword And Ignore Error  Розгорнути документи договору
   Wait Until Page Contains Element  ${prepared_locator}  10
 #  ${raw_value}=   Get Text  ${prepared_locator}
   scrollIntoView by script  ${prepared_locator}
-  ${raw_value}=  Get Element Attribute    ${prepared_locator}@innerText
   Capture Page Screenshot
+  ${raw_value}=  Run Keyword If  '${field}'=='documentOf'  Get Element Attribute  ${prepared_locator}@data-document-of
+  ...  ELSE  Get Element Attribute    ${prepared_locator}@innerText
   Run Keyword And Return  Конвертувати інформацію із документа про ${field}  ${raw_value}
+
 
 Розгорнути документи договору
   JavascriptClick  '//input[contains(@id, "contractDocuments")]'  # костыль для открытия доков когтракта
+
 
 Конвертувати інформацію із документа про title
   [Arguments]  ${raw_value}
   ${return_value}=  Set Variable  ${raw_value.split(',')[0]}
   [return]  ${return_value}
 
+
 Конвертувати інформацію із документа про description
   [Arguments]  ${raw_value}
   ${return_value}=  Set Variable  ${raw_value.split('(')[1].replace(')','')}
   [return]  ${return_value}
+
+
+Конвертувати інформацію із документа про documentOf
+  [Arguments]  ${raw_value}
+#  ${return_value}=  Set Variable  ${raw_value.split('(')[1].replace(')','')}
+  [return]  ${raw_value}
 
 Отримати документ
   [Arguments]  ${username}  ${tender_uaid}  ${doc_id}
@@ -2507,45 +2594,32 @@ Wait for upload before signing
   Reload Page
   Run Keyword And Ignore Error  Відкрити розділ Деталі Закупівлі
 
-  #сделал чтобы не сломать остальную логику на контрактах
-  #TODO: вынести переход на стр. контракта в кейворд, почистить код от ненужных действий и ожиданий.
-
-#  ${tmp_location_tender}=  Get Location
-
-# ==================  1 - enter values into fields, save
+# ==================  1 - enter FAKE values into fields, save
   Run Keyword And Ignore Error  Відкрити всі лоти
+  Run Keyword And Ignore Error  Відкрити сторінку контракту
   Run Keyword And Ignore Error  Click Element     xpath=//a[.="Внести інформацію про договір"]
   Wait and Input    id=contractNumber  ${contract_index}
-  ${time_now_tmp}=     get_time_now
+  ${time_now_tmp}=     get_time_offset  -1
   ${date_now_tmp}=     get_date_now
   ${date_future_tmp}=  get_date_10d_future
   Input text  name=dateSigned  ${date_now_tmp}
   Input text  name=timeSigned  ${time_now_tmp}
   Input text  name=endDate     ${date_future_tmp}
   Зберегти інформацію про контракт
-#  Wait Scroll Click     id=qa_saveContractInfo  # button - Опублікувати документи та завершити пізніше
-#  Wait and Input        xpath=//div[@id="saveData"]//button[@ng-click="save(documentsToAdd)"]  10
-
-# ==================  2 - wait for upload
-#  Sleep  60  # wait for upload
-#  Go To  ${tmp_location_tender}
   Reload Page
-#  Capture Page Screenshot
-#  Відкрити розділ Деталі Закупівлі
-#  Wait Scroll Click     xpath=//a[.="Редагувати інформацію про договір "]
 
-# ==================  3 - upload doc
-
+# ==================  2 - upload doc
   Wait and Select By Label      id=docType  Підписаний договір
   ${file_path}  ${file_name}  ${file_content}=   create_fake_doc
   Завантажити док  ${username}  ${file_path}  id=qa_contractDocAdd
   Run Keyword And Ignore Error  Відкрити розділ Деталі Закупівлі
   Run Keyword And Ignore Error  Wait Scroll Click     id=qa_EditContractInfo
-  ${methodType}=  Get From Dictionary  ${USERS.users['${username}']}  method_type
-  Run Keyword If  '${methodType}' in ('aboveThresholdEU', 'aboveThresholdUA', 'negotiation', 'reporting')  Підтвердити контракт додаванням ЕЦП
-  Wait Scroll Click  xpath=//button[@click-and-block="sign()"]  # button - Завершити закупівлю
+  Run Keyword And Ignore Error  Підтвердити контракт додаванням ЕЦП
+  Sleep  10  # ждем автопроверки ЕЦП
+  Click One Of Button  id=qa_finishTender  id=qa_finishTenderReporting
   Capture Page Screenshot
-  Wait Until Page Contains  Підтверджено!  60
+#  Wait Until Page Contains  Підтверджено!  60
+
 
 Підписати ЕЦП
   [Arguments]
@@ -2578,27 +2652,50 @@ Wait for upload before signing
   Run Keyword And Return  Редагувати поле договору ${field}  ${value}
 
 
-Редагувати поле договору value.amount
-  [Arguments]  ${value}
+Відкрити сторінку контракту
+  # костыль для complaints сьюта, не переходит на стр.
+  Run Keyword And Ignore Error  Wait Scroll Click  id=naviTitle0
+  Capture Page Screenshot
+  Sleep  15
+  Click One Of Button  id=qa_EditContractInfo  id=qa_FillContractInfo
+  Дочекатись зникнення blockUI
+  Capture Page Screenshot
   Reload Page
   Дочекатись зникнення blockUI
-  Input String  id=qa_valueAmount   ${value}
-#  отловить ошибки валидации на UI:
-#  ${error1}=  Run Keyword And Return Status  Element Should Be Visible  id=Amount should be less or equal to awarded amount
-#  ${error2}=  Run Keyword And Return Status  Element Should Be Visible  id=Amount should be greater than amountNet and differ by no more than 20.0%
-#  ${status}=  Set Variable  ${error1} or  ${error2}
-#  Run Keyword And Return If  ${status}==True  Зберегти інформацію про контракт
+
+
+Редагувати поле договору value.amount
+  [Arguments]  ${value}
+#  Run Keyword And Ignore Error  Wait Scroll Click  id=naviTitle0
+  Reload Page
+  Перейти на сторінку контракту за потреби
+  Дочекатись зникнення blockUI
+  Run Keyword And Ignore Error  Відкрити сторінку контракту
+  # Input Text не работает из за маски ввода
+  Execute JavaScript  document.querySelector("decimal-mask-input[data='contract.value.amount'] input[id='qa_valueAmount']").value=${value}
+  Execute JavaScript  $("decimal-mask-input[data='contract.value.amount'] input[id='qa_valueAmount']").trigger('change')
+  Execute JavaScript  document.querySelector("decimal-mask-input[data='contract.value.amount'] input[name='value']").value=${value}
+  Execute JavaScript  $("decimal-mask-input[data='contract.value.amount'] input[name='value']").trigger('change')
+  Capture Page Screenshot
   Зберегти інформацію про контракт
 
 
 Редагувати поле договору value.amountNet
   [Arguments]  ${value}
+  Run Keyword And Ignore Error  Відкрити сторінку контракту
   Reload Page
   Дочекатись зникнення blockUI
-  Input String  id=qa_valueAmountNet    ${value}
+  # Input Text не работает из за маски ввода
+  Capture Page Screenshot
+  Execute JavaScript  document.querySelector("decimal-mask-input[data='contract.value.amountNet'] input[id='qa_valueAmountNet']").value=${value}
+  Execute JavaScript  $("decimal-mask-input[data='contract.value.amountNet'] input[id='qa_valueAmountNet']").trigger('change')
+  Execute JavaScript  document.querySelector("decimal-mask-input[data='contract.value.amountNet'] input[name='valueNet']").value=${value}
+  Execute JavaScript  $("decimal-mask-input[data='contract.value.amountNet'] input[name='valueNet']").trigger('change')
+  Capture Page Screenshot
   # TODO ↓
+  Sleep  120  # time to compensate dateSigned
   Wait and Input    id=contractNumber  contractnumber
-  ${time_now_tmp}=     get_time_now
+  ${time_now_tmp}=     get_time_offset  -1
   ${date_now_tmp}=     get_date_now
   ${date_future_tmp}=  get_date_10d_future
   Wait and Input  name=dateSigned  ${date_now_tmp}
@@ -2612,6 +2709,7 @@ Wait for upload before signing
   Reload Page
   ${date}=    convert_date_to_etender_format  ${dateSigned}
   ${time}=    convert_time_to_etender_format  ${dateSigned}
+  Sleep  60  # sometimes robot wanna input dateSigned in future minute
   Wait and Input  id=qa_datSignedDate  ${date}
   Wait and Input  id=qa_datSignedTime  ${time}
   Зберегти інформацію про контракт
@@ -2640,6 +2738,7 @@ Wait for upload before signing
   Wait Scroll Click     id=qa_saveContractInfo
   Wait and Click    id=qa_saveData
   Дочекатись зникнення blockUI
+  Sleep  10  # wait data to export
 
 
 Відповісти на вимогу про виправлення умов закупівлі
@@ -2735,34 +2834,46 @@ temporary keyword for title update
   Дочекатись зникнення blockUI
 
 
-Підтвердити постачальника
-  [Arguments]  ${username}  ${tender_uaid}  ${award_num}
-  # TODO: rework duplicated code - see "Створити постачальника, додати документацію і підтвердити його"
-  Перейти на сторінку тендера за потреби
-  Перейти до оцінки кандидата
-  Wait Scroll Click     id=qa_NextStep       # button - Наступний крок
-  ${passed}=  Run Keyword And Return Status     Підтвердити переможця
-  Return From Keyword If  ${passed}  # Выходим если допорог и успешно подтвердили. если нет такой кнопки - идём дальше
-  Підписати авард
-  Wait Scroll Click     id=qa_NextStep
-  ${status}=  Run Keyword And Return Status  Element Should Be Visible  id=qa_selfEligible
-  RUN KEYWORD IF  '${status}'=='True'  Wait and Click         id=qa_selfEligible  10
-  RUN KEYWORD IF  '${status}'=='True'  Wait and Click         id=qa_selfQualified  10
-  Підтвердити переможця
-
-Затвердити постачальників
-  Wait and Click  id=submitPreQualification  10
-
-Дискваліфікувати постачальника
-  [Arguments]  ${username}  ${tender_uaid}  ${award_num}
-  Перейти на сторінку тендера за потреби
-  Перейти до оцінки кандидата
+Завантажити документ в award
+  [Arguments]  ${username}
   Select From List By Label  xpath=//div[@id="modalGetAwards"]//select[@id="docType"]  Повідомлення про рішення
   ${file_path}  ${file_name}  ${file_content}=   create_fake_doc
   Завантажити док  ${username}  ${file_path}  xpath=//div[@id="modalGetAwards"]//button[@id="qa_uploadAwardDocument"]  xpath=//div[@id="modalGetAwards"]//button[@id="downloadAwardDocs"]
   Wait Until Keyword Succeeds   10 min  20 x  Wait for upload  # there: button - Оцінка документів Кандидата
   Reload Page
   Перейти до оцінки кандидата
+
+
+Підтвердити постачальника
+  [Arguments]  ${username}  ${tender_uaid}  ${award_num}
+  # TODO: rework duplicated code - see "Створити постачальника, додати документацію і підтвердити його"
+  Перейти на сторінку тендера за потреби
+  ${procedureType}=  Run Keyword  Отримати інформацію про procurementMethodType
+  Перейти до оцінки кандидата
+  Run Keyword If  '${procedureType}' in ('competitiveDialogueUA', 'competitiveDialogueEU', 'competitiveDialogueEU.stage2')  Завантажити документ в award  ${username}
+  Wait Scroll Click     id=qa_NextStep       # button - Наступний крок
+  ${passed}=  Run Keyword And Return Status     Підтвердити переможця
+  Return From Keyword If  ${passed}  # Выходим если допорог и успешно подтвердили. если нет такой кнопки - идём дальше
+  Підписати авард
+  Wait Scroll Click     id=qa_NextStep
+  ${status}=  Run Keyword And Return Status  Element Should Be Visible  id=qa_selfEligible
+  Run Keyword If  '${status}'=='True'  Wait and Click         id=qa_selfEligible  10
+  Run Keyword If  '${status}'=='True'  Wait and Click         id=qa_selfQualified  10
+  Підтвердити переможця
+
+
+Затвердити постачальників
+  [Arguments]  ${username}  ${tender_uaid}
+  Sleep  10
+  Wait and Click  id=submitPreQualification  10
+  Дочекатись зникнення blockUI
+
+
+Дискваліфікувати постачальника
+  [Arguments]  ${username}  ${tender_uaid}  ${award_num}
+  Перейти на сторінку тендера за потреби
+  Перейти до оцінки кандидата
+  Завантажити документ в award  ${username}
   Wait Scroll Click     id=qa_NextStep
   Підписати авард
   Reload Page
@@ -2789,10 +2900,25 @@ temporary keyword for title update
   Wait and Click    id=qa_disqualify_award
   Sleep  10
 
+
+Дочекатись імпорту угоди
+  [Documentation]  Компенсує затримку генерації та імпорту угоди на майданчику
+  ${status}=  Get Text  id=tenderStatus
+  Run Keyword If  '${status.lower()}' == 'кваліфікація переможців (період оскарження)'  Sleep  200
+  Reload Page
+
+
 Перейти до оцінки кандидата
-  Sleep  20
+  Run Keyword And Ignore Error  Дочекатись імпорту угоди
+  Wait Until Keyword Succeeds   10 s  6 x  Відкрити модальне вікно award
+
+
+Відкрити модальне вікно award
+  Reload Page
+  Sleep  5
   Wait Scroll Click    xpath=//a[@data-target="#modalGetAwards"]
   Дочекатись зникнення blockUI
+
 
 Скасування рішення кваліфікаційної комісії
   [Arguments]  ${username}  ${tender_uaid}  ${award_num}
@@ -2870,12 +2996,12 @@ Wait for doc upload in qualification
 Перевести тендер у блокування перед аукціоном
   Reload Page
   Sleep  10
-  Run Keyword And Ignore Error  Wait Scroll Click     id=qa_startStandStillPeriod
+  Run Keyword  JavascriptClick  '//button[@id="qa_startStandStillPeriod"]'
   Sleep  5
   Reload Page
-  ${procedureType}=  Set Variable  ${USERS.users['${tender_owner}'].method_type}
-  Run Keyword If  '${procedureType}' in ('competitiveDialogueUA', 'competitiveDialogueEU')  Wait Until Page Contains   Проведення переговорів
-  ...  ELSE  Wait Until Page Contains   Блокування перед аукціоном
+  Дочекатись зникнення blockUI
+  ${status}=  Get Text  id=tenderStatus
+  Should Be True  '${status}'  in ('Проведення переговорів', 'Блокування перед аукціоном')
 
 
 Затвердити остаточне рішення кваліфікації
@@ -2918,7 +3044,8 @@ Wait for doc upload in qualification
   Дочекатись зникнення blockUI
   Click Element  id=update_tender_btn
   Дочекатись зникнення blockUI
-  ${new_time_value}=  Run Keyword  get_time_offset
+  ${new_time_value}=  Run Keyword If  '${USERS.users['Etender_Owner']['method_type']}'=='competitiveDialogueEU'  Run Keyword  get_time_offset  35
+  ...             ELSE  Run Keyword  get_time_offset
   Input String  xpath=//input[@ng-model="updateTenderModel.tenderPeriod.endDate" and @placeholder="час"]  ${new_time_value}
   Click Element  xpath=//button[@click-and-block="submit()"]
   Дочекатись зникнення blockUI
@@ -2927,3 +3054,186 @@ Wait for doc upload in qualification
   Click Element  xpath=//a[@ng-click="vm.activeTendering()"]
   Дочекатись зникнення blockUI
   Sleep  30
+
+
+#  ------------------------Contract Management------------------------
+Пошук договору по ідентифікатору
+
+
+Отримати доступ до договору
+
+
+Внести зміну в договір
+
+
+Додати документацію до зміни в договорі
+
+
+Редагувати поле договору
+  [Arguments]  ${username}  ${i}  ${field}  ${value}
+  ${status}=  Run Keyword And Return Status  Element Should Be Visible  xpath=//a[contains(@data-target, '#collapseUpdate')]
+  Run Keyword If  '${status}'='True'  Wait and Click  xpath=//a[contains(@data-target, '#collapseUpdate')]
+  Run Keyword If  '${status}'='True'  Wait and Click  xpath=//a[contains(@href, '/contracting/')]
+  Run Keyword And Return  Редагувати поле договору ${field}  ${value}
+
+Редагувати поле договору description
+  [Arguments]  ${value}
+  ${status}=  Run Keyword And Return Status  Element Should Be Visible
+  //div[@data-target='#contractingInfo']
+
+
+Редагувати зміну
+
+
+Застосувати зміну
+
+
+Внести зміни в договір
+
+
+Отримати інформацію із договору
+
+
+Завантажити документацію до договору
+
+
+#  ------------------------Contract Management------------------------
+
+Встановити ціну за одиницю для контракту
+  [Arguments]  ${username}  ${tender_uaid}  ${contract_data}
+  Log  ${contract_data}
+  Run Keyword And Ignore Error  Wait and Click  id=qa_agreementEdit
+  Дочекатись зникнення blockUI
+  ${contract}=  Get From Dictionary  ${contract_data}  data
+  ${organization}=  Get From Dictionary  ${contract.suppliers[0].identifier}  legalName
+  ${value}=  Get From Dictionary  ${contract.unitPrices[0].value}  amount
+  Log  ${value}
+  Wait and Input  xpath=//*[contains(@id, "qa_supplierName") and text()="${organization}"]//ancestor::form[contains(@name, "unitForms")]//input[@type="number"]  ${value}
+  Sleep  10
+  Wait Scroll Click  id=qa_updateUnitPrice
+  Дочекатись зникнення blockUI
+  Capture Page Screenshot
+  Reload Page
+
+
+Зареєструвати угоду
+  [Arguments]  ${username}  ${tender_uaid}  ${period}
+  Log  ${period}
+  ${start}=  Get From Dictionary  ${period}  startDate
+  ${end}=    Get From Dictionary  ${period}  endDate
+  ${start}=  convert_date_to_etender_format  ${start}
+  ${end}=    convert_date_to_etender_format  ${end}
+
+  Wait and Input    id=agreementNumber  agreementnumber
+  Sleep  20
+  #${time_now_tmp}=     get_time_offset  -1
+  ${date_now_tmp}=     get_date_now
+  Wait and Input  name=dateSigned  ${date_now_tmp}
+  #Wait and Input  name=timeSigned  ${time_now_tmp}
+  Wait and Input  startDate        ${start}
+  Wait and Input  endDate          ${end}
+  Sleep  20
+  #Дочекатись зникнення blockUI
+  Wait Scroll Click  id=qa_saveAgreement
+  Дочекатись зникнення blockUI
+  Wait And Click  id=qa_activateAgreement
+  Дочекатись зникнення blockUI
+
+
+Пошук угоди по ідентифікатору
+  [Arguments]  ${arg1}  ${arg2}
+  Wait Scroll Click  id=qa_agreementDetailesComplete  # переход на стр. изменений соглашений
+  Дочекатись зникнення blockUI
+
+
+Отримати інформацію із угоди
+  [Arguments]  ${username}  ${agreement_id}  ${field}
+  Run Keyword And Return  Отримати інформацію із угоди про ${field}
+  Дочекатись зникнення blockUI
+
+
+Створити зміну до угоди
+  Дочекатись зникнення blockUI
+  Location Should Contain  agreementDetailes
+  Wait Scroll Click    xpath=//button[@name="changeForm"]
+  Дочекатись зникнення blockUI
+
+
+Отримати доступ до угоди
+  [Arguments]  ${username}  ${agreement_uaid}
+  Створити зміну до угоди
+
+
+Завантажити документ в рамкову угоду
+  [Arguments]  ${username}  ${filepath}  ${agreement_uaid}
+  Дочекатись зникнення blockUI
+
+
+Внести зміну в угоду
+  [Arguments]  ${username}  ${agreement_uaid}  ${change_data}
+  # page reloaded here, must click create btn again
+  Створити зміну до угоди
+  ${rationalType}=  Get From Dictionary  ${change_data.data}  rationaleType
+  ${rationalType}=  get_rationale_types  ${rationalType}
+  ${rationale}=  Get From Dictionary  ${change_data.data}  rationale
+
+  Wait and Select By Label  xpath=//div/select[@id="cousechangeAgreement"]  ${rationalType}
+  Wait and Input  id=rationale  ${rationale}
+  Wait and Input  id=addend_0  1  # fill value to create change
+  Wait Scroll Click  xpath=//*[@ng-click="changeAgreementApply(changingData)"]
+  Дочекатись зникнення blockUI
+  Sleep  10
+
+
+#Редагувати поле угоди rationaleType
+#  [Arguments]
+#  Select From List By Partial Label
+
+
+#Редагувати поле угоди rationale
+#  [Arguments]
+
+
+Оновити властивості угоди
+  [Arguments]  ${username}  ${agreement_uaid}  ${data}
+  Log  ${data}
+  ${addend}=  Get From Dictionary  ${data.data.modifications[0]}  addend
+  Дочекатись зникнення blockUI
+  ${addend}=  float_to_string_2f  ${addend}
+  Wait and Input  id=addend_0  ${addend}
+  Capture Page Screenshot
+
+
+
+Застосувати зміну для угоди
+  [Arguments]  ${username}  ${agreement_uaid}  ${dateSigned}  ${status}
+  Wait and Click  xpath=//button[@click-and-block="updateAgreementChange(change)"]
+  Дочекатись зникнення blockUI
+
+
+Отримати інформацію із угоди про changes[${n}].rationaleType
+  [Documentation]  Причина зміни
+#  get_rationale_types
+
+
+Отримати інформацію із угоди про changes[${n}].rationale
+  [Documentation]  Опис причини внесення змін
+
+
+Отримати інформацію із угоди про changes[${n}].status
+
+
+
+Отримати інформацію із угоди про changes[${n}].modifications[${n}].itemId
+  [Documentation]  Позиція
+
+
+Отримати інформацію із угоди про changes[${n}].modifications[${n}].addend
+  [Documentation]  Абсолютне значения
+
+
+Отримати інформацію із угоди про changes[${n}].modifications[${n}].factor
+  [Documentation]  Зазначення % зміни ціни
+
+
+Отримати інформацію із угоди про changes[${n}].modifications[${n}].contractId
