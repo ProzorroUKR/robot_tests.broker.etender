@@ -290,6 +290,7 @@ Login
   Wait and Select By Label  xpath=//select[@id='guarantee_0']  Відсутнє
   Wait and Click  xpath=//input[@type= 'checkbox']
   Sleep  5
+  Додати дати при наявності    ${tender_data}  ${methodType}
   Wait Scroll Click  id=createTender
   Sleep   10
   Reload Page
@@ -2625,9 +2626,10 @@ Wait for upload before signing
   [Arguments]
   Дочекатись зникнення blockUI
   Wait and Select By Label  id=CAsServersSelect  Тестовий ЦСК АТ "ІІТ"
-  ${key_dir}=  Normalize Path  ${CURDIR}/../../
+  ${key_dir}=  Normalize Path  ${CURDIR}/../../src/robot_tests.broker.etender
   Choose File  id=PKeyFileInput  ${key_dir}/Key-6.dat
-  ${PKeyPassword}=  Get File  password.txt
+  ${PKeyPassword}=  Get File  ${key_dir}/password.txt
+  Sleep  2
   Wait and Input    id=PKeyPassword  ${PKeyPassword}
   Дочекатись Зникнення blockUI
   Wait and Click    id=PKeyReadButton  5

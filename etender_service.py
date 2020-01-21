@@ -41,8 +41,10 @@ def get_procedure_type(methodType):
         'esco': 'Відкриті торги для закупівлі енергосервісу',
         'closeFrameworkAgreementUA': 'Відкриті торги для укладання рамкової угоди',
         'open_framework': 'Відкриті торги для укладання рамкової угоди',
-        'framework_selection': 'Відбір для закупівлі за рамковою угодою'
+        'framework_selection': 'Відбір для закупівлі за рамковою угодою',
+        'closeFrameworkAgreementSelectionUA': 'Відбір для закупівлі за рамковою угодою'
     }[methodType].decode('utf-8')
+
 
 def get_method_type(procedure_name):
     return {
