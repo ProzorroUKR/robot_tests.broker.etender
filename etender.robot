@@ -157,9 +157,9 @@ Click One Of Button
   Log  ${tender_data}
 
   # Достаем айдишник плана для создания тендера
-  ${file_path}=  Get Variable Value  ${ARTIFACT_FILE}  artifact_plan.yaml
-  ${ARTIFACT}=  load_data_from  ${file_path}
-  Set Global Variable  ${global_plan_id}    ${ARTIFACT.tender_uaid}
+#  ${file_path}=  Get Variable Value  ${ARTIFACT_FILE}  artifact_plan.yaml
+#  ${ARTIFACT}=  load_data_from  ${file_path}
+#  Set Global Variable  ${global_plan_id}    ${ARTIFACT.tender_uaid}
 
   # Если есть объект закупівельника (buyers) - то это план, из за особенностей площадки меняем данные
   ${status}=  Run Keyword And Return Status     Dictionary Should Contain Key   ${tender_data.data}  buyers
@@ -221,7 +221,8 @@ Login
   Wait and Select By Label  id=chooseProcedureType  ${procedure_type}
   Wait and Click        id=goToCreate
   Дочекатись зникнення blockUI
-  Wait and Input        xpath=//input[@name="planExternalId"]          ${global_plan_id}
+#  Wait and Input        xpath=//input[@name="planExternalId"]          ${global_plan_id}
+  Wait and Input  xpath=//input[@name="planExternalId"]  ${tender_uaid}
   Wait and Click  id=searchPlan
   Sleep  10
   Wait and Input    id=title    ${tender_data.title}
@@ -650,6 +651,7 @@ add feature
 
   Select From List By Label     xpath=//select[@name = 'procedureType']  ${procurementMethodTypeStr}
   Wait and Click        id=qa_mainPlanClassification
+  Sleep  5
   Wait and Input        id=classificationCode                            ${cpv_id}
   Sleep  5
   Click element         xpath=//td[contains(.,'${cpv_id}')]
@@ -2085,7 +2087,7 @@ Input String
   Дочекатись зникнення blockUI
   Run Keyword And Ignore Error  Відкрити всі лоти
   Відкрити розділ Деталі Закупівлі
-  ${i}=  Run Keyword  index_adapter  ${i}
+  ${n}=  Run Keyword  index_adapter  ${n}
   ${return_value}=  Get Text  xpath=//div[@ng-if="award.complaintPeriod.endDate"]/div[2]/span
   ${return_value}=  Set Variable  ${return_value.replace(u'по ','')}
   Run Keyword And Return     convert_etender_date_to_iso_format_and_add_timezone   ${return_value}
@@ -2682,9 +2684,17 @@ Wait for upload before signing
   Зберегти інформацію про контракт
 
 
+Почекати stand still для переговорної процедури
+# костыль, пока не добавили Дочекатися закічення stand still періоду в negotiation.robot
+  ${present}=  Run Keyword And Return Status  Element Should Be Visible  xpath=$x('//span[contains(., "Період звернень ще не завершено")]
+  Run Keyword If  '${present}'=='True'  Sleep  605
+  Reload Page
+  Дочекатись зникнення blockUI
+
 Редагувати поле договору value.amountNet
   [Arguments]  ${value}
   Run Keyword And Ignore Error  Відкрити сторінку контракту
+  Почекати stand still для переговорної процедури
   Reload Page
   Дочекатись зникнення blockUI
   # Input Text не работает из за маски ввода
