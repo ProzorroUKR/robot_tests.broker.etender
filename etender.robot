@@ -184,6 +184,8 @@ Click One Of Button
 
 Отримати інформацію про procurementMethodType
   Дочекатись зникнення blockUI
+  ${url}=   Get Location
+  Log  ${url}
   ${methodType}=    Get Text   id=procedureType
   Run Keyword And Return  get_method_type  ${methodType.lower()}
 
@@ -1741,11 +1743,13 @@ Input String
   [Arguments]  ${lot_id}  ${new_value}
   Input text  id=lotDescription_0  ${new_value}
 
+
 Отримати документ до лоту
   [Arguments]  ${username}  ${tender_uaid}  ${lot_id}  ${doc_id}
   Відкрити розділ Деталі Закупівлі
   Відкрити всі лоти
   Run Keyword And Return  etender.Отримати документ  ${username}  ${tender_uaid}  ${doc_id}
+
 
 Отримати інформацію про status
   Reload Page
@@ -1753,37 +1757,48 @@ Input String
   ${return_value}=   Отримати текст із поля і показати на сторінці   status
   Run Keyword And Return   convert_etender_string_to_common_string  ${return_value.lower()}
 
+
 Отримати інформацію із тендера
   [Arguments]  ${username}  ${tender_uaid}  ${field}
   Run Keyword And Ignore Error  Відкрити всі лоти
   Run Keyword And Return  Отримати інформацію про ${field}
 
+
 Отримати інформацію про funders[0].name
   Run Keyword And Return   Get Text     xpath=//span[@id="funder_name"]
+
 
 Отримати інформацію про funders[0].address.countryName
   Run Keyword And Return   Get Text     xpath=//span[@id="funder_country"]
 
+
 Отримати інформацію про funders[0].address.locality
   Run Keyword And Return   Get Text     xpath=//span[@id="funder_city"]
+
 
 Отримати інформацію про funders[0].address.postalCode
   Run Keyword And Return   Get Text     xpath=//span[@id="funder_postIndex"]
 
+
 Отримати інформацію про funders[0].address.region
   Run Keyword And Return   Get Text     xpath=//span[@id="funder_region"]
+
 
 Отримати інформацію про funders[0].address.streetAddress
   Run Keyword And Return   Get Text     xpath=//span[@id="funder_addressStr"]
 
+
 Отримати інформацію про funders[0].contactPoint.url
   Run Keyword And Return   Get Text     xpath=//span[@id="funder_url"]
+
 
 Отримати інформацію про funders[0].identifier.id
   Run Keyword And Return   Get Text     xpath=//span[@id="funder_id"]
 
+
 Отримати інформацію про funders[0].identifier.legalName
   Run Keyword And Return   Get Text     xpath=//span[@id="funder_legalName"]
+
 
 Отримати інформацію про funders[0].identifier.scheme
   Run Keyword And Return   Get Text     xpath=//span[@id="funder_scheme"]
@@ -1792,8 +1807,10 @@ Input String
 Отримати інформацію про agreementDuration
   run keyword and return  Wait and Get Attribute  id=frameworkAgreementTerm  termvalue
 
+
 Отримати інформацію про agreements[${n}].agreementID
-  Run Keyword And Return  Wait and Get Text  id=qa_agreementId
+  Run Keyword And Return  Wait and Get Text  xpath=//*[contains(@id,"qa_agreementId")]
+
 
 Отримати інформацію про agreements[${n}].status
   ${agreements_status}=  Wait and Get Text  xpath=//div[@ng-bind= '::agreement.status.name']
@@ -1814,15 +1831,27 @@ Input String
   Run Keyword And Return   Отримати текст із поля і показати на сторінці   title
 
 
-Отримати інформацію про qualificationPeriod.endDate
+Отримати qualificationPeriod_endDate
   Reload Page
+  Перейти на сторінку тендера за потреби
+  Відкрити всі лоти
+  Run Keyword And Return  Get Text  id=qualificationPeriod_endDate
+
+
+Отримати інформацію про qualificationPeriod.endDate
+
+  Capture Page Screenshot
+  Reload Page
+  Дочекатись зникнення blockUI
+
   ${procedureType}=  Run Keyword  Отримати інформацію про procurementMethodType
   Run Keyword If  '${procedureType}' in ('closeFrameworkAgreementUA')  Sleep  600
   ...  ELSE  Sleep  300
     # поле появляется на UI, когда заканчивается период. Тест ожидает сразу
 
-  ${return_value}=   Get Text  id=qualificationPeriod_endDate
+  ${return_value}=  Wait Until Keyword Succeeds  20 s  6 x  Отримати qualificationPeriod_endDate
   Run Keyword And Return  convert_etender_date_to_iso_format  ${return_value}
+
 
 Отримати інформацію про qualifications[0].status
   Reload Page
@@ -2764,6 +2793,7 @@ Wait for upload before signing
   Wait and Click    id=qa_saveData
   Дочекатись зникнення blockUI
   Sleep  10  # wait data to export
+  Run Keyword And Ignore Error  Wait Until Page Contains  Підтверджено!  7
 
 
 Відповісти на вимогу про виправлення умов закупівлі
@@ -2779,7 +2809,9 @@ Wait for upload before signing
   Дочекатись зникнення blockUI
   Відкрити розділ вимог і скарг
   Wait and Click  xpath=//div[@role="tab" and contains(.,"${tmp_hacked_title.split(':')[0]}")]
-  Wait Scroll Click  xpath=(//button[@ng-click="showAnswerComplaintModal(currentComplaint)"])[1]
+  Дочекатись зникнення blockUI
+#  Wait Scroll Click  xpath=(//button[@ng-click="showAnswerComplaintModal(currentComplaint)"])[1]
+  Wait Scroll Click  id=qa_AnswerComplaint
   Sleep  5
   ${resolution}=      Get From Dictionary  ${answer_data.data}  resolution
   ${resolutionType}=  Get From Dictionary  ${answer_data.data}  resolutionType
@@ -2799,7 +2831,10 @@ Wait for upload before signing
   Дочекатись зникнення blockUI
   Відкрити розділ вимог і скарг
   Wait and Click  xpath=//div[@role="tab" and contains(.,"${tmp_hacked_title.split(':')[0]}")]
-  Wait Scroll Click  xpath=(//button[@ng-click="showAnswerComplaintModal(currentComplaint)"])[1]
+  Дочекатись зникнення blockUI
+#  Wait Scroll Click  xpath=(//button[@ng-click="showAnswerComplaintModal(currentComplaint)"])[1]
+  Wait Scroll Click  id=qa_AnswerComplaint
+  Sleep  5
   ${resolution}=      Get From Dictionary  ${answer_data.data}  resolution
   ${resolutionType}=  Get From Dictionary  ${answer_data.data}  resolutionType
   ${tendererAction}=  Get From Dictionary  ${answer_data.data}  tendererAction
@@ -3236,14 +3271,24 @@ Wait for doc upload in qualification
   Дочекатись зникнення blockUI
 
 
+Перейти на сторінку agreementDetails за потреби
+  ${url}=  Get Location
+  Log  ${url}
+  Run Keyword Unless  'agreementDetailes' in '${url}'  Wait Scroll Click  id=qa_agreementDetailesComplete
+  Дочекатись зникнення blockUI
+
+
 Отримати інформацію із угоди про changes[${n}].rationaleType
   [Documentation]  Причина зміни
+  # TODO: assert agreementDetailes in get location if no - click btn
+  Перейти на сторінку agreementDetails за потреби
   ${rationaleType}=  Wait and Get Text  id=qa_rationaleType${n}
-  run keyword and return  get_rationale_types  ${rationaleType}
+  Run Keyword And Return  get_rationale_types  ${rationaleType}
 
 
 Отримати інформацію із угоди про changes[${n}].rationale
   [Documentation]  Опис причини внесення змін
+  Дочекатись зникнення blockUI
   Run Keyword And Return  Wait and Get Text  id=qa_rationale${n}
 
 
@@ -3259,9 +3304,8 @@ Wait for doc upload in qualification
 
 Отримати інформацію із угоди про changes[${n}].modifications[${n}].addend
   [Documentation]  Абсолютне значения
-  ${item_descr}=  Wait and Get Text  id=qa_modifiItemDescr${n}
+  ${item_descr}=  Wait and Get Text  id=qa_modifiItemAddend${n}
   [Return]  ${item_descr.split(':')[0]}
-
 
 
 Отримати інформацію із угоди про changes[${n}].modifications[${n}].factor
