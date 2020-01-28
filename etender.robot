@@ -283,6 +283,7 @@ Login
   Sleep  10
   Wait and Click  xpath=//a[contains(@href, 'tender/')]
   Wait Scroll Click  id=qa_createAgrSelect
+  Дочекатись зникнення blockUI
   ${tender_data}=       Get From Dictionary     ${tender_data}              data
   Log  ${tender_data}
   ${items}=             Get From Dictionary     ${tender_data}              items
@@ -1171,6 +1172,14 @@ add feature
   Select Checkbox  id=selfEligible
   Select Checkbox  id=selfQualified
 
+
+Скорегувати сумму пропозиції для рамок
+  [Arguments]  ${amount}
+  ${amount}=  convert to string  ${amount}
+  ${amount}=  Set Variable  ${amount[:4]}
+  Run Keyword And Return  convert to number  ${amount}
+
+
 Подати цінову пропозицію
   [Arguments]  ${username}  ${tender_uaid}  ${bid_data}  ${lots_ids}  ${features_ids}=None
   Перейти на сторінку тендера за потреби
@@ -1179,14 +1188,17 @@ add feature
   ${methodType}=  Get Text  id=procedureType
   ${methodType}=  get_method_type   ${methodType.lower()}
   Run Keyword If  '${methodType}' == 'esco'  Run Keyword And Return  Подати цінову пропозицію ESCO  ${username}  ${tender_uaid}  ${bid_data}  ${lots_ids}  ${features_ids}
-
   ${amount}=    Run Keyword If  ${lots_ids} is None  Set Variable  ${bid_data.data.value.amount}
   ...           ELSE  Set Variable  ${bid_data.data.lotValues[0].value.amount}
+  ${amountTmp}=  Set Variable  ${amount}
+  ${x}=  Run Keyword  Отримати інформацію про procurementMethodType
+  Set Global Variable  ${global_procedure_type}  ${x}
+
+  ${amount}=  Run Keyword If  '${global_procedure_type}' in ('closeFrameworkAgreementSelectionUA')  Скорегувати сумму пропозиції для рамок  ${amount}
+  ...  ELSE  Set Variable  ${amountTmp}
   Run Keyword And Ignore Error      Input String      id=amount0      ${amount}
   Run Keyword And Ignore Error      Пітдвердити чекбокси пропозиції
 
-  ${x}=  Run Keyword  Отримати інформацію про procurementMethodType
-  Set Global Variable  ${global_procedure_type}  ${x}
   Run Keyword And Return If  '${global_procedure_type}' in ('competitiveDialogueUA', 'competitiveDialogueEU', 'closeFrameworkAgreementSelectionUA')  Пропустити заповнення нецінових показників
   Run Keyword Unless  ${features_ids} is None  Заповнити нецінові критерії  ${features_ids}  ${bid_data.data.parameters}
   Click Element     id=createBid_0
@@ -1337,7 +1349,17 @@ add feature
   Run Keyword And Return  Wait and Get Attribute  xpath=//span[@id='lotValue_${n}' and @class='hidden-xs fwn pl15 ng-binding']  value
 
 
+Мінімальний степ для рамкових
+  [Arguments]  ${n}
+  ${result}=  Wait and Get Text  id=lotMinimalStep_${n}
+  ${x}=  parse_currency_value_with_spaces  ${result}
+  run keyword and return  convert to number  ${x}
+
+
 Отримати інформацію про lots[${n}].minimalStep.amount
+  ${procedureType}=  Run Keyword  Отримати інформацію про procurementMethodType
+  ${min_sel}=  Мінімальний степ для рамкових  ${n}
+  Return From Keyword If  '${procedureType}'=='closeFrameworkAgreementSelectionUA'  ${min_sel}
   ${result}=  Wait and Get Text  id=lotMinimalStep_${n}
   Run Keyword And Return  parse_currency_value_with_spaces  ${result}
 
@@ -2809,7 +2831,7 @@ Wait for upload before signing
   Wait and Click  xpath=//div[@role="tab" and contains(.,"${tmp_hacked_title.split(':')[0]}")]
   Дочекатись зникнення blockUI
   Capture Page Screenshot
-  JavascriptClick  id=qa_AnswerComplaint
+  JavascriptClick  '//*[contains(@id, "qa_AnswerComplaint")]'
   Дочекатись зникнення blockUI
   Capture Page Screenshot
   ${modal_opened}=  Run Keyword And Return Status  Element Should Be Visible  id=descriptionEl
@@ -3164,10 +3186,10 @@ Wait for doc upload in qualification
 
 Редагувати поле договору description
   [Arguments]  ${value}
-  ${status}=  Run Keyword And Return Status  Element Should Be Visible
-  //div[@data-target='#contractingInfo']
+  ${status}=  Run Keyword And Return Status  Element Should Be Visible  //div[@data-target='#contractingInfo']
 
 
+#  ------------------------Contract Management------------------------
 Редагувати зміну
 
 
@@ -3183,7 +3205,7 @@ Wait for doc upload in qualification
 Завантажити документацію до договору
 
 
-#  ------------------------Contract Management------------------------
+#  ------------------------agreement------------------------
 
 Встановити ціну за одиницю для контракту
   [Arguments]  ${username}  ${tender_uaid}  ${contract_data}
@@ -3229,6 +3251,7 @@ Wait for doc upload in qualification
 Пошук угоди по ідентифікатору
   [Arguments]  ${arg1}  ${arg2}
   Wait Scroll Click  id=qa_agreementDetailesComplete  # переход на стр. изменений соглашений
+  Sleep  5
   Дочекатись зникнення blockUI
 
 
@@ -3240,7 +3263,8 @@ Wait for doc upload in qualification
 
 Створити зміну до угоди
   Дочекатись зникнення blockUI
-  Location Should Contain  agreementDetailes
+  Sleep  5
+  Run Keyword And Ignore Error  Location Should Contain  agreementDetailes
   Wait Scroll Click    xpath=//button[@name="changeForm"]
   Дочекатись зникнення blockUI
 
@@ -3271,15 +3295,6 @@ Wait for doc upload in qualification
   Sleep  10
 
 
-#Редагувати поле угоди rationaleType
-#  [Arguments]
-#  Select From List By Partial Label
-
-
-#Редагувати поле угоди rationale
-#  [Arguments]
-
-
 Оновити властивості угоди
   [Arguments]  ${username}  ${agreement_uaid}  ${data}
   Log  ${data}
@@ -3288,7 +3303,6 @@ Wait for doc upload in qualification
   ${addend}=  float_to_string_2f  ${addend}
   Wait and Input  id=addend_0  ${addend}
   Capture Page Screenshot
-
 
 
 Застосувати зміну для угоди
@@ -3309,8 +3323,8 @@ Wait for doc upload in qualification
   # TODO: assert agreementDetailes in get location if no - click btn
   Перейти на сторінку agreementDetails за потреби
   ${rationaleType}=  Wait and Get Text  id=qa_rationaleType${n}
-  ${tax_status}=  set variable  'taxRate'
-  return from keyword if  '${rationaleType}'==u'Зміна ціни у зв’язку із зміною ставок податків і зборів'  ${tax_status}
+  ${tax_status}=  Set Variable  'taxRate'
+  Return From Keyword If  '${rationaleType}'==u'Зміна ціни у зв’язку із зміною ставок податків і зборів'  ${tax_status}
   Run Keyword And Return  get_rationale_types  ${rationaleType}
 
 
@@ -3323,7 +3337,6 @@ Wait for doc upload in qualification
 Отримати інформацію із угоди про changes[${n}].status
   ${status}=  Wait and Get Text  id=qa_changeStatus${n}
   Run Keyword And Return  get_rationale_status  ${status}
-  return from keyword if  '${status}'=='u'Зміна ціни у зв’язку із зміною ставок податків і зборів'  ${tax_status}
 
 
 Отримати інформацію із угоди про changes[${n}].modifications[${n}].itemId
@@ -3341,10 +3354,11 @@ Wait for doc upload in qualification
   Run Keyword And Return  Convert To Number   ${return_value}
 
 
-Отримати інформацію із угоди про changes[${n}].modifications[${n}].factor
+Отримати інформацію із угоди про changes[${n}].modifications[${i}].factor
   [Documentation]  Зазначення % зміни ціни
-  ${item_factor}=  Wait and Get Text  id=qa_modifiItemFactor${n}
-  [Return]  ${item_factor.split(':')[0]}
+  ${item_factor}=  Wait and Get Text  xpath=(//*[contains(@id, "qa_modifiItemFactor")])[last()]
+  Run Keyword And Return  convert to number  ${item_factor.split(':')[0]}
 
 
-Отримати інформацію із угоди про changes[${n}].modifications[${n}].contractId
+Отримати інформацію із угоди про changes[${n}].modifications[${i}].contractId
+  Run Keyword And Return  Wait and Get Text  xpath=(//*[contains(@id, "qa_ContractId")])[last()]
