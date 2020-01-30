@@ -3297,10 +3297,22 @@ Wait for doc upload in qualification
   run keyword if  '${rationalType}'=='taxRate'  Внести зміни taxRate  ${username}  ${agreement_uaid}  ${change_data}
   run keyword if  '${rationalType}'=='itemPriceVariation'  Внести зміни itemPriceVariation  ${username}  ${agreement_uaid}  ${change_data}
   run keyword if  '${rationalType}'=='thirdParty'  Внести зміни thirdParty  ${username}  ${agreement_uaid}  ${change_data}
+  run keyword if  '${rationalType}'=='partyWithdrawal'  Внести зміни partyWithdrawal  ${username}  ${agreement_uaid}  ${change_data}
   Sleep  5
   Wait Scroll Click  xpath=//*[@ng-click="changeAgreementApply(changingData)"]
   Дочекатись зникнення blockUI
   Sleep  10
+
+Завантажити документ для зміни у рамковій угоді
+  [Arguments]  ${username}  ${file}  ${tender_uaid}  ${arg}
+  select from list by index  id=docType  2
+  Sleep  5
+  Завантажити док  ${username}  ${file}  xpath=//button[@ng-model="documentsToAdd"]
+  Sleep  30
+  Reload page
+  Sleep  10
+
+
 
 Внести зміни taxRate
   [Arguments]  ${username}  ${agreement_uaid}  ${change_data}
@@ -3325,20 +3337,35 @@ Wait for doc upload in qualification
   Wait and Input  id=rationale  ${rationale}
   Wait and Input  id=factor_0   1
 
+Внести зміни partyWithdrawal
+  [Arguments]  ${username}  ${agreement_uaid}  ${change_data}
+  select from list by index  xpath=//div/select[@id="cousechangeAgreement"]  4
+  ${rationale}=  Get From Dictionary  ${change_data.data}  rationale
+  Wait and Input  id=rationale  ${rationale}
+  select from list by index  id=provider  3
+
 
 Оновити властивості угоди
   [Arguments]  ${username}  ${agreement_uaid}  ${data}
   Log  ${data}
-  ${addend}=  Get From Dictionary  ${data.data.modifications[0]}  addend
+  ${status}  ${addend}=  run keyword and ignore error  Get From Dictionary  ${data.data.modifications[0]}  addend
+  ${status}  ${factor}=  run keyword and ignore error  Get From Dictionary  ${data.data.modifications[0]}  factor
   Дочекатись зникнення blockUI
-  ${addend}=  float_to_string_2f  ${addend}
-  Wait and Input  id=addend_0  ${addend}
+  ${status}  ${addend}=  run keyword and ignore error  float_to_string_2f  ${addend}
+  run keyword and ignore error  Wait and Input  id=addend_0  ${addend}
+  ${status}  ${factor}=  run keyword and ignore error  float_to_string_2f  ${factor}
+  run keyword and ignore error  Wait and Input  id=factor_0  ${factor}
   Capture Page Screenshot
+  Sleep  10
+  Wait and Click  xpath=//button[@click-and-block="updateAgreementChange(change)"]
+  Дочекатись зникнення blockUI
+  Sleep  5
 
 
 Застосувати зміну для угоди
   [Arguments]  ${username}  ${agreement_uaid}  ${dateSigned}  ${status}
-  Wait and Click  xpath=//button[@click-and-block="updateAgreementChange(change)"]
+  run keyword if  '${status}'=='active'  Wait and Click  xpath=//button[@ng-click="activePendingChange(change, pendingChangeForm)"]
+  run keyword if  '${status}'=='cancelled'  Wait and Click  xpath=//button[@ng-click="cancellePendingChange(change.id)"]
   Дочекатись зникнення blockUI
 
 
